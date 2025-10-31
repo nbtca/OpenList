@@ -1,10 +1,16 @@
 package smb
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"net/http"
+	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/OpenListTeam/OpenList/v4/internal/driver"
 	"github.com/OpenListTeam/OpenList/v4/internal/model"
@@ -19,6 +25,12 @@ type SMB struct {
 	model.Storage
 	Addition
 	fs *smb2.Share
+	
+	// thumbnail support
+	thumbConcurrency      int
+	thumbTokenBucket      TokenBucket
+	videoThumbPos         float64
+	videoThumbPosIsPercentage bool
 }
 
 func (d *SMB) Config() driver.Config {
@@ -33,6 +45,54 @@ func (d *SMB) Init(ctx context.Context) error {
 	if !strings.Contains(d.Addition.Address, ":") {
 		d.Addition.Address = d.Addition.Address + ":445"
 	}
+	
+	// Initialize thumbnail settings
+	if d.ThumbCacheFolder != "" && !utils.Exists(d.ThumbCacheFolder) {
+		err := os.MkdirAll(d.ThumbCacheFolder, 0755)
+		if err != nil {
+			return err
+		}
+	}
+	if d.ThumbConcurrency != "" {
+		v, err := strconv.ParseUint(d.ThumbConcurrency, 10, 32)
+		if err != nil {
+			return err
+		}
+		d.thumbConcurrency = int(v)
+	}
+	if d.thumbConcurrency == 0 {
+		d.thumbTokenBucket = NewNopTokenBucket()
+	} else {
+		d.thumbTokenBucket = NewStaticTokenBucketWithMigration(d.thumbTokenBucket, d.thumbConcurrency)
+	}
+	
+	// Check the VideoThumbPos value
+	if d.VideoThumbPos == "" {
+		d.VideoThumbPos = "20%"
+	}
+	if strings.HasSuffix(d.VideoThumbPos, "%") {
+		percentage := strings.TrimSuffix(d.VideoThumbPos, "%")
+		val, err := strconv.ParseFloat(percentage, 64)
+		if err != nil {
+			return fmt.Errorf("invalid video_thumb_pos value: %s, err: %s", d.VideoThumbPos, err)
+		}
+		if val < 0 || val > 100 {
+			return fmt.Errorf("invalid video_thumb_pos value: %s, the percentage must be a number between 0 and 100", d.VideoThumbPos)
+		}
+		d.videoThumbPosIsPercentage = true
+		d.videoThumbPos = val / 100
+	} else {
+		val, err := strconv.ParseFloat(d.VideoThumbPos, 64)
+		if err != nil {
+			return fmt.Errorf("invalid video_thumb_pos value: %s, err: %s", d.VideoThumbPos, err)
+		}
+		if val < 0 {
+			return fmt.Errorf("invalid video_thumb_pos value: %s, the time must be a positive number", d.VideoThumbPos)
+		}
+		d.videoThumbPosIsPercentage = false
+		d.videoThumbPos = val
+	}
+	
 	return d._initFS(ctx)
 }
 
@@ -74,6 +134,47 @@ func (d *SMB) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (*m
 	if err := d.checkConn(ctx); err != nil {
 		return nil, err
 	}
+	
+	link := &model.Link{}
+	var MFile model.File
+	
+	// Handle thumbnail requests
+	if args.Type == "thumb" && d.Thumbnail && utils.Ext(file.GetName()) != "svg" {
+		var buf *bytes.Buffer
+		var thumbPath *string
+		err := d.thumbTokenBucket.Do(ctx, func() error {
+			var err error
+			buf, thumbPath, err = d.getThumb(file)
+			return err
+		})
+		if err != nil {
+			return nil, err
+		}
+		link.Header = http.Header{
+			"Content-Type": []string{"image/png"},
+		}
+		if thumbPath != nil {
+			open, err := os.Open(*thumbPath)
+			if err != nil {
+				return nil, err
+			}
+			stat, err := open.Stat()
+			if err != nil {
+				open.Close()
+				return nil, err
+			}
+			link.ContentLength = int64(stat.Size())
+			MFile = open
+		} else {
+			MFile = bytes.NewReader(buf.Bytes())
+			link.ContentLength = int64(buf.Len())
+		}
+		link.SyncClosers.AddIfCloser(MFile)
+		link.RangeReader = stream.GetRangeReaderFromMFile(link.ContentLength, MFile)
+		link.RequireReference = link.SyncClosers.Length() > 0
+		return link, nil
+	}
+	
 	fullPath := file.GetPath()
 	remoteFile, err := d.fs.Open(fullPath)
 	if err != nil {
@@ -163,11 +264,41 @@ func (d *SMB) Remove(ctx context.Context, obj model.Obj) error {
 	}
 	var err error
 	fullPath := obj.GetPath()
-	if obj.IsDir() {
-		err = d.fs.RemoveAll(fullPath)
+	
+	// Handle recycle bin
+	if !utils.SliceContains([]string{"", "delete permanently"}, d.RecycleBinPath) {
+		objName := obj.GetName()
+		var relPath string
+		relPath, err = filepath.Rel(d.RootFolderPath, filepath.Dir(fullPath))
+		if err != nil {
+			return err
+		}
+		recycleBinPath := filepath.Join(d.RecycleBinPath, relPath)
+		
+		// Create recycle bin directory if it doesn't exist
+		if !utils.Exists(recycleBinPath) {
+			err = os.MkdirAll(recycleBinPath, 0755)
+			if err != nil {
+				return err
+			}
+		}
+		
+		dstPath := filepath.Join(recycleBinPath, objName)
+		if utils.Exists(dstPath) {
+			dstPath = filepath.Join(recycleBinPath, objName+"_"+time.Now().Format("20060102150405"))
+		}
+		
+		// Move to recycle bin
+		err = d.fs.Rename(fullPath, dstPath)
 	} else {
-		err = d.fs.Remove(fullPath)
+		// Delete permanently
+		if obj.IsDir() {
+			err = d.fs.RemoveAll(fullPath)
+		} else {
+			err = d.fs.Remove(fullPath)
+		}
 	}
+	
 	if err != nil {
 		d.cleanLastConnTime()
 		return err
