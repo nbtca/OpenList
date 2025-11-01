@@ -1,0 +1,38 @@
+# Git files
+.git
+.gitignore
+.github
+
+# Documentation
+*.md
+CODE_OF_CONDUCT.md
+CONTRIBUTING.md
+LICENSE
+
+# Build artifacts
+*.exe
+bin/
+build/
+server/
+
+# Development files
+.air.toml
+docker-compose.yml
+Dockerfile
+Dockerfile.ci
+*.sh
+
+# Data and test files
+data/
+test/
+tests/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Other
+renovate.json
+wrapper/

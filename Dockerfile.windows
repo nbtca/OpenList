@@ -1,0 +1,97 @@
+# escape=`
+# Windows-based Dockerfile for OpenList
+# Build stage using official Golang image
+# Runtime stage using Windows Server Nano
+
+# Build stage
+FROM golang:1.25.3-windowsservercore-ltsc2025 AS builder
+
+SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+
+WORKDIR C:/app
+
+# 安装 7-Zip
+RUN Invoke-WebRequest -Uri https://www.7-zip.org/a/7z2501-x64.msi -OutFile C:\7zip.msi
+RUN Start-Process msiexec.exe -ArgumentList '/i C:\7zip.msi /quiet /norestart' -Wait
+RUN Remove-Item C:\7zip.msi -Force
+
+# Install MinGW-w64 for CGO support
+RUN Invoke-WebRequest -Uri https://github.com/niXman/mingw-builds-binaries/releases/download/15.2.0-rt_v13-rev0/x86_64-15.2.0-release-posix-seh-msvcrt-rt_v13-rev0.7z -OutFile C:/mingw.7z
+# Extract to C:\
+RUN & 'C:\Program Files\7-Zip\7z.exe' x C:/mingw.7z -oC:\ -y
+RUN Remove-Item C:/mingw.7z -Force
+
+# The archive extracts to a folder like C:\mingw64 or C:\x86_64-*\mingw64
+# Find the actual mingw64 location and rename/move it to C:\mingw64 if needed
+RUN $mingwPath = Get-ChildItem C:\ -Directory | Where-Object { $_.Name -like 'x86_64*' -or $_.Name -eq 'mingw64' } | Select-Object -First 1; `
+    if ($mingwPath -and $mingwPath.Name -ne 'mingw64') { `
+        Write-Host "Found MinGW at: $($mingwPath.FullName)"; `
+        if (Test-Path "$($mingwPath.FullName)\mingw64") { `
+            Write-Host "Moving nested mingw64 to C:\mingw64"; `
+            Move-Item "$($mingwPath.FullName)\mingw64" C:\mingw64 -Force; `
+            Remove-Item $mingwPath.FullName -Recurse -Force; `
+        } else { `
+            Write-Host "Renaming $($mingwPath.Name) to mingw64"; `
+            Rename-Item $mingwPath.FullName C:\mingw64 -Force; `
+        } `
+    } elseif ($mingwPath) { `
+        Write-Host "MinGW already at C:\mingw64"; `
+    } else { `
+        Write-Host "ERROR: Could not find MinGW directory"; `
+        Get-ChildItem C:\ | Select-Object Name; `
+        exit 1; `
+    }
+
+# Verify gcc installation exists
+RUN if (-not (Test-Path C:\mingw64\bin\gcc.exe)) { `
+        Write-Host "ERROR: gcc.exe not found at C:\mingw64\bin\gcc.exe"; `
+        Write-Host "Contents of C:\:"; `
+        Get-ChildItem C:\ | Select-Object Name; `
+        exit 1; `
+    } else { `
+        Write-Host "Successfully found gcc at C:\mingw64\bin\gcc.exe"; `
+    }
+    
+# Verify gcc installation with full path
+RUN C:\mingw64\bin\gcc.exe --version
+
+# Set environment variables for CGO
+ENV CGO_ENABLED=1
+ENV GOOS=windows
+ENV GOARCH=amd64
+ENV CC=C:\\mingw64\\bin\\gcc.exe
+ENV CXX=C:\\mingw64\\bin\\g++.exe
+# Add MinGW to PATH
+RUN [Environment]::SetEnvironmentVariable('Path', $env:Path + ';C:\mingw64\bin', [EnvironmentVariableTarget]::Machine)
+
+COPY go.mod .
+COPY go.sum .
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the application with CGO enabled
+RUN go build -o openlist.exe -trimpath -ldflags "-s -w -extldflags '-static'" .
+# Runtime stage using Windows Server Nano
+FROM mcr.microsoft.com/windows/nanoserver:ltsc2025
+
+WORKDIR C:/openlist
+
+# Copy the compiled binary from builder
+COPY --from=builder C:/app/openlist.exe .
+
+# Create data directory in PowerShell during build
+SHELL ["powershell", "-Command"]
+RUN New-Item -ItemType Directory -Path C:\\openlist\\data -Force
+
+# Expose ports
+EXPOSE 5244 5245
+
+# Set volume
+VOLUME C:\\openlist\\data
+
+# Run the application
+ENTRYPOINT ["C:\\openlist\\openlist.exe"]
+CMD ["server"]

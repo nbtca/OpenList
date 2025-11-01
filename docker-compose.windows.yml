@@ -1,0 +1,73 @@
+# Docker Compose configuration for OpenList Windows containers
+# This file is specifically for Windows containers
+# Make sure Docker Desktop is set to Windows container mode
+
+services:
+  openlist:
+    image: openlist:windows
+    build:
+      context: .
+      dockerfile: Dockerfile.windows
+    container_name: openlist-windows
+    restart: unless-stopped
+
+    ports:
+      - "5244:5244"
+      - "5245:5245"
+
+    volumes:
+      # Use Windows path for volume mounting
+      # Modify the path according to your needs
+      - type: bind
+        source: C:\openlist-data
+        target: C:\openlist\data
+
+    environment:
+      # Optional: Set admin password on first run
+      # - OPENLIST_ADMIN_PASSWORD=your_secure_password
+
+      # Optional: Set timezone (Windows format)
+      - TZ=China Standard Time
+
+      # Optional: Set log level (debug, info, warn, error)
+      # - OPENLIST_LOG_LEVEL=info
+
+      # Optional: Database type (sqlite, mysql, postgres)
+      # - OPENLIST_DATABASE_TYPE=sqlite
+
+    # Windows-specific settings
+    isolation: process
+
+    # Health check
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "powershell",
+          "-Command",
+          "try { $response = Invoke-WebRequest -Uri http://localhost:5244/ping -UseBasicParsing -TimeoutSec 5; exit 0 } catch { exit 1 }",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # Resource limits (optional)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '2.0'
+    #       memory: 2G
+    #     reservations:
+    #       cpus: '0.5'
+    #       memory: 512M
+# Optional: Add network configuration
+# networks:
+#   openlist-network:
+#     driver: nat
+
+# Note:
+# 1. Before running, ensure the data directory exists: New-Item -ItemType Directory -Path C:\openlist-data -Force
+# 2. Run with: docker-compose -f docker-compose.windows.yml up -d
+# 3. View logs: docker-compose -f docker-compose.windows.yml logs -f
+# 4. Stop: docker-compose -f docker-compose.windows.yml down
