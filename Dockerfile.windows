@@ -1,7 +1,28 @@
-# escape=`
-# Windows-based Dockerfile for OpenList
-# Build stage using official Golang image
-# Runtime stage using Windows Server Nano
+ARG WINDOWS_VERSION=ltsc2022
+FROM mcr.microsoft.com/windows/servercore:${WINDOWS_VERSION} AS frontend
+# Use PowerShell as the default shell
+SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+WORKDIR C:/app/frontend
+# Install Node.js
+RUN Invoke-WebRequest -Uri https://nodejs.org/dist/v25.1.0/node-v25.1.0-x64.msi -OutFile C:/nodejs.msi
+RUN Start-Process msiexec.exe -ArgumentList '/i C:\\nodejs.msi /quiet /norestart' -Wait
+RUN Remove-Item C:/nodejs.msi -Force
+RUN node --version
+# Install Git
+RUN Invoke-WebRequest -Uri https://github.com/git-for-windows/git/releases/download/v2.51.2.windows.1/Git-2.51.2-64-bit.exe -OutFile C:/gitinstaller.exe
+RUN Start-Process -FilePath "C:/gitinstaller.exe" -ArgumentList '/VERYSILENT', '/NORESTART', '/NOCANCEL', '/SP-', '/CLOSEAPPLICATIONS' -Wait
+RUN Remove-Item C:/gitinstaller.exe -Force
+RUN git --version
+# Install pnpm
+RUN npm install -g pnpm
+# Clone the frontend source code
+RUN git clone --depth 1 --branch main https://github.com/nbtca/OpenList-Frontend
+
+# Install frontend dependencies and build
+WORKDIR C:/app/frontend/OpenList-Frontend
+RUN pnpm install
+RUN pnpm run build
+
 
 # Build stage
 FROM golang:1.25-windowsservercore-${WINDOWS_VERSION} AS builder
@@ -20,34 +41,68 @@ RUN Invoke-WebRequest -Uri https://www.7-zip.org/a/7z2501-x64.msi -OutFile C:/7z
 RUN Start-Process msiexec.exe -ArgumentList '/i C:\\7zip.msi /quiet /norestart' -Wait
 RUN Remove-Item C:/7zip.msi -Force
 
-# Install MinGW-w64 for CGO support
-RUN Invoke-WebRequest -Uri https://github.com/niXman/mingw-builds-binaries/releases/download/15.2.0-rt_v13-rev0/x86_64-15.2.0-release-mcf-seh-ucrt-rt_v13-rev0.7z -OutFile C:/mingw.7z
-# Extract to C:\
-RUN & 'C:\\Program Files\\7-Zip\\7z.exe' x C:/mingw.7z -oC:/ -y
-RUN Remove-Item C:/mingw.7z -Force
+# # Install MinGW-w64 for CGO support (which can not run in nanoserver)
+# RUN Invoke-WebRequest -Uri https://github.com/niXman/mingw-builds-binaries/releases/download/15.2.0-rt_v13-rev0/x86_64-15.2.0-release-mcf-seh-ucrt-rt_v13-rev0.7z -OutFile C:/mingw.7z; & 'C:\\Program Files\\7-Zip\\7z.exe' x C:/mingw.7z -oC:/ -y; Remove-Item C:/mingw.7z -Force
+
+# Use llvm-mingw-MSVCRT version instead of UCRT
+RUN Invoke-WebRequest -Uri https://github.com/mstorsjo/llvm-mingw/releases/download/20251021/llvm-mingw-20251021-msvcrt-x86_64.zip -OutFile C:/mingw.zip; & 'C:\\Program Files\\7-Zip\\7z.exe' x C:/mingw.zip -oC:/ -y; Remove-Item C:/mingw.zip -Force;
+RUN [Environment]::SetEnvironmentVariable('Path', $env:Path + ';C:\\llvm-mingw-20251021-msvcrt-x86_64\\bin', [EnvironmentVariableTarget]::Machine)
+
+# # Use MSVCRT version instead of UCRT
+# RUN Invoke-WebRequest -Uri https://github.com/brechtsanders/winlibs_mingw/releases/download/15.2.0posix-13.0.0-msvcrt-r2/winlibs-x86_64-posix-seh-gcc-15.2.0-mingw-w64msvcrt-13.0.0-r2.7z -OutFile C:/mingw.zip; & 'C:\\Program Files\\7-Zip\\7z.exe' x C:/mingw.zip -oC:/ -y; Remove-Item C:/mingw.zip -Force
+# # Add MinGW to PATH #ref https://stackoverflow.com/questions/42092932/appending-to-path-in-a-windows-docker-container
+# RUN [Environment]::SetEnvironmentVariable('Path', $env:Path + ';C:\\mingw64\\bin', [EnvironmentVariableTarget]::Machine)
+
 
 # Set environment variables for CGO
 ENV CGO_ENABLED=1
-# Add MinGW to PATH
-RUN [Environment]::SetEnvironmentVariable('Path', $env:Path + ';C:\\mingw64\\bin', [EnvironmentVariableTarget]::Machine)
-
 # Verify gcc installation with full path
 RUN gcc --version
 
 # Copy source code
 COPY . .
-
+# Remove public\dist
+RUN Remove-Item public/dist -Recurse -Force
+# Copy built frontend assets
+COPY --from=frontend C:/app/frontend/OpenList-Frontend/dist ./public/dist
 # Build the application with CGO enabled
-RUN go build -ldflags='-s -w -linkmode external -extldflags \"-static\"' -o openlist.exe .
-# Runtime stage using Windows Server Nano
+RUN go build -trimpath -ldflags='-s -w -extldflags \"-static\"' -o openlist.exe .
 
+# # Compress using upx (optional)
+# RUN Invoke-WebRequest -Uri https://github.com/upx/upx/releases/download/v5.0.2/upx-5.0.2-win64.zip -OutFile C:/upx.zip; & 'C:\\Program Files\\7-Zip\\7z.exe' x C:/upx.zip -oC:/upx -y; Remove-Item C:/upx.zip -Force; C:/upx/upx-5.0.2-win64/upx.exe --best C:/app/openlist.exe
+
+# Runtime stage using Windows Server Nano
+# ADD https://aka.ms/vs/17/release/vc_redist.x64.exe C:/vc_redist.x64.exe
+# RUN C:\vc_redist.x64.exe /install /quiet /norestart
+# RUN Remove-Item C:/vc_redist.x64.exe -Force
+# RUN New-Item -ItemType Directory -Force -Path C:/vcruntime | Out-Null; \
+#     Copy-Item -Path 'C:/Windows/System32/ucrtbase.dll' -Destination 'C:/vcruntime' -Force; \
+#     Copy-Item -Path 'C:/Windows/System32/msvcp140.dll' -Destination 'C:/vcruntime' -Force -ErrorAction SilentlyContinue; \
+#     Copy-Item -Path 'C:/Windows/System32/vcruntime140*.dll' -Destination 'C:/vcruntime' -Force -ErrorAction SilentlyContinue; \
+#     Copy-Item -Path 'C:/Windows/System32/api-ms-win-crt-*.dll' -Destination 'C:/vcruntime' -Force -ErrorAction SilentlyContinue
+
+# RUN Get-ChildItem -Path C:/vcruntime
+
+#  Directory: C:\vcruntime
+# Mode                 LastWriteTime         Length Name
+# ----                 -------------         ------ ----
+# -a----         6/11/2025   5:21 AM         557728 msvcp140.dll
+# -a----        10/22/2025   3:25 PM        1373304 ucrtbase.dll
+# -a----         6/11/2025   5:21 AM         124544 vcruntime140.dll
+# -a----         6/11/2025   5:21 AM          49792 vcruntime140_1.dll
+# -a----          4/1/2024   2:59 PM          37800 vcruntime140_1_clr0400.dll
+# -a----          4/1/2024   2:59 PM          98728 vcruntime140_clr0400.dll
+# -a----         6/11/2025   5:21 AM          38528 vcruntime140_threads.dll
+
+# FROM mcr.microsoft.com/windows/servercore:${WINDOWS_VERSION}
 FROM mcr.microsoft.com/windows/nanoserver:${WINDOWS_VERSION}
 
 WORKDIR C:/openlist
 
 # Copy the compiled binary from builder
 COPY --from=builder C:/app/openlist.exe .
-
+# COPY --from=builder C:/vcruntime C:/vcruntime
+# ENV PATH "C:\Windows\system32;C:\Program Files\PowerShell;C:\vcruntime"
 # Expose ports
 EXPOSE 5244 5245
 

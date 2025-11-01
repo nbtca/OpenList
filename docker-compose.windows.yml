@@ -9,7 +9,7 @@ services:
       context: .
       dockerfile: Dockerfile.windows
       args:
-        WINDOWS_VERSION: ltsc2022
+        WINDOWS_VERSION: ltsc2025
     container_name: openlist-windows
     restart: unless-stopped
     network_mode: nat
@@ -41,7 +41,7 @@ services:
       # - OPENLIST_DATABASE_TYPE=sqlite
 
     # Windows-specific settings
-    isolation: process
+    isolation: hyperv
 
     # Health check
     healthcheck:
