@@ -60,6 +60,7 @@ type User struct {
 	SsoID      string `json:"sso_id"` // unique by sso platform
 	Authn      string `gorm:"type:text" json:"-"`
 	Roles      string `json:"roles"` // comma-separated OIDC roles for ACL
+	Avatar     string `json:"avatar"` // avatar URL from SSO provider
 }
 
 func (u *User) IsGuest() bool {

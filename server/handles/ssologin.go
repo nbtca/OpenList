@@ -142,7 +142,7 @@ func GetOIDCClient(c *gin.Context, useCompatibility bool, redirectUri, method st
 	}, nil
 }
 
-func autoRegister(username, userID, roles string, err error) (*model.User, error) {
+func autoRegister(username, userID, roles, avatar string, err error) (*model.User, error) {
 	if !errors.Is(err, gorm.ErrRecordNotFound) || !setting.GetBool(conf.SSOAutoRegister) {
 		return nil, err
 	}
@@ -159,6 +159,7 @@ func autoRegister(username, userID, roles string, err error) (*model.User, error
 		Disabled:   false,
 		SsoID:      userID,
 		Roles:      roles,
+		Avatar:     avatar,
 	}
 	if err = db.CreateUser(user); err != nil {
 		if strings.HasPrefix(err.Error(), "UNIQUE constraint failed") && strings.HasSuffix(err.Error(), "username") {
@@ -236,6 +237,8 @@ func OIDCLoginCallback(c *gin.Context) {
 		common.ErrorStrResp(c, "cannot get username from OIDC provider", 400)
 		return
 	}
+	// Extract avatar from OIDC token
+	avatar := utils.Json.Get(payload, "picture").ToString()
 	// Extract roles from OIDC token
 	roles := ""
 	rolesKey := setting.GetStr(conf.SSOOIDCRolesKey, "roles")
@@ -290,14 +293,22 @@ func OIDCLoginCallback(c *gin.Context) {
 	if method == "sso_get_token" {
 		user, err := db.GetUserBySSOID(userID)
 		if err != nil {
-			user, err = autoRegister(userID, userID, roles, err)
+			user, err = autoRegister(userID, userID, roles, avatar, err)
 			if err != nil {
 				common.ErrorResp(c, err, 400)
 			}
 		} else {
-			// Update roles for existing user
+			// Update roles and avatar for existing user
+			updated := false
 			if user.Roles != roles {
 				user.Roles = roles
+				updated = true
+			}
+			if user.Avatar != avatar && avatar != "" {
+				user.Avatar = avatar
+				updated = true
+			}
+			if updated {
 				if err := db.UpdateUser(user); err != nil {
 					common.ErrorResp(c, err, 400)
 					return
@@ -343,7 +354,7 @@ func SSOLoginCallback(c *gin.Context) {
 	clientId := setting.GetStr(conf.SSOClientId)
 	platform := setting.GetStr(conf.SSOLoginPlatform)
 	clientSecret := setting.GetStr(conf.SSOClientSecret)
-	var tokenUrl, userUrl, scope, authField, idField, usernameField string
+	var tokenUrl, userUrl, scope, authField, idField, usernameField, avatarField string
 	additionalForm := make(map[string]string)
 	switch platform {
 	case "Github":
@@ -353,6 +364,7 @@ func SSOLoginCallback(c *gin.Context) {
 		scope = "read:user"
 		idField = "id"
 		usernameField = "login"
+		avatarField = "avatar_url"
 	case "Microsoft":
 		tokenUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
 		userUrl = "https://graph.microsoft.com/v1.0/me"
@@ -361,6 +373,7 @@ func SSOLoginCallback(c *gin.Context) {
 		authField = "code"
 		idField = "id"
 		usernameField = "displayName"
+		avatarField = ""
 	case "Google":
 		tokenUrl = "https://oauth2.googleapis.com/token"
 		userUrl = "https://www.googleapis.com/oauth2/v1/userinfo"
@@ -369,12 +382,14 @@ func SSOLoginCallback(c *gin.Context) {
 		authField = "code"
 		idField = "id"
 		usernameField = "name"
+		avatarField = "picture"
 	case "Dingtalk":
 		tokenUrl = "https://api.dingtalk.com/v1.0/oauth2/userAccessToken"
 		userUrl = "https://api.dingtalk.com/v1.0/contact/users/me"
 		authField = "authCode"
 		idField = "unionId"
 		usernameField = "nick"
+		avatarField = "avatarUrl"
 	case "Casdoor":
 		endpoint := strings.TrimSuffix(setting.GetStr(conf.SSOEndpointName), "/")
 		tokenUrl = endpoint + "/api/login/oauth/access_token"
@@ -384,6 +399,7 @@ func SSOLoginCallback(c *gin.Context) {
 		authField = "code"
 		idField = "sub"
 		usernameField = "preferred_username"
+		avatarField = "picture"
 	case "OIDC":
 		OIDCLoginCallback(c)
 		return
@@ -462,13 +478,26 @@ func SSOLoginCallback(c *gin.Context) {
 		return
 	}
 	username := utils.Json.Get(resp.Body(), usernameField).ToString()
+	avatar := ""
+	if avatarField != "" {
+		avatar = utils.Json.Get(resp.Body(), avatarField).ToString()
+	}
 	user, err := db.GetUserBySSOID(userID)
 	if err != nil {
 		// For non-OIDC platforms, roles are not available
-		user, err = autoRegister(username, userID, "", err)
+		user, err = autoRegister(username, userID, "", avatar, err)
 		if err != nil {
 			common.ErrorResp(c, err, 400)
 			return
+		}
+	} else {
+		// Update avatar for existing user if available
+		if avatar != "" && user.Avatar != avatar {
+			user.Avatar = avatar
+			if err := db.UpdateUser(user); err != nil {
+				common.ErrorResp(c, err, 400)
+				return
+			}
 		}
 	}
 	token, err := common.GenerateToken(user)
