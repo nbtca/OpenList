@@ -1,0 +1,59 @@
+# escape=`
+# Windows-based Dockerfile for OpenList
+# Build stage using official Golang image
+# Runtime stage using Windows Server Nano
+
+# Build stage
+FROM golang:1.25-windowsservercore-${WINDOWS_VERSION} AS builder
+
+SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+
+WORKDIR C:/app
+
+COPY go.mod .
+COPY go.sum .
+# Download dependencies
+RUN go mod download
+
+# 安装 7-Zip
+RUN Invoke-WebRequest -Uri https://www.7-zip.org/a/7z2501-x64.msi -OutFile C:/7zip.msi
+RUN Start-Process msiexec.exe -ArgumentList '/i C:\\7zip.msi /quiet /norestart' -Wait
+RUN Remove-Item C:/7zip.msi -Force
+
+# Install MinGW-w64 for CGO support
+RUN Invoke-WebRequest -Uri https://github.com/niXman/mingw-builds-binaries/releases/download/15.2.0-rt_v13-rev0/x86_64-15.2.0-release-mcf-seh-ucrt-rt_v13-rev0.7z -OutFile C:/mingw.7z
+# Extract to C:\
+RUN & 'C:\\Program Files\\7-Zip\\7z.exe' x C:/mingw.7z -oC:/ -y
+RUN Remove-Item C:/mingw.7z -Force
+
+# Set environment variables for CGO
+ENV CGO_ENABLED=1
+# Add MinGW to PATH
+RUN [Environment]::SetEnvironmentVariable('Path', $env:Path + ';C:\\mingw64\\bin', [EnvironmentVariableTarget]::Machine)
+
+# Verify gcc installation with full path
+RUN gcc --version
+
+# Copy source code
+COPY . .
+
+# Build the application with CGO enabled
+RUN go build -ldflags='-s -w -linkmode external -extldflags \"-static\"' -o openlist.exe .
+# Runtime stage using Windows Server Nano
+
+FROM mcr.microsoft.com/windows/nanoserver:${WINDOWS_VERSION}
+
+WORKDIR C:/openlist
+
+# Copy the compiled binary from builder
+COPY --from=builder C:/app/openlist.exe .
+
+# Expose ports
+EXPOSE 5244 5245
+
+# Set volume
+VOLUME C:/openlist/data
+
+# Run the application
+ENTRYPOINT ["C:/openlist/openlist.exe"]
+CMD ["server"]
