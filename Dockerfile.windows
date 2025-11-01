@@ -61,8 +61,8 @@ RUN gcc --version
 
 # Copy source code
 COPY . .
-# Remove public\dist
-RUN Remove-Item public/dist -Recurse -Force
+# Remove public\dist if it exists
+RUN if (Test-Path 'public/dist') { Remove-Item 'public/dist' -Recurse -Force } else { Write-Host 'public/dist not found, skipping' }
 # Copy built frontend assets
 COPY --from=frontend C:/app/frontend/OpenList-Frontend/dist ./public/dist
 # Build the application with CGO enabled
