@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/OpenListTeam/go-cache"
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/OpenListTeam/OpenList/v4/internal/conf"
 	"github.com/OpenListTeam/OpenList/v4/internal/db"
@@ -141,7 +142,7 @@ func GetOIDCClient(c *gin.Context, useCompatibility bool, redirectUri, method st
 	}, nil
 }
 
-func autoRegister(username, userID string, err error) (*model.User, error) {
+func autoRegister(username, userID, roles string, err error) (*model.User, error) {
 	if !errors.Is(err, gorm.ErrRecordNotFound) || !setting.GetBool(conf.SSOAutoRegister) {
 		return nil, err
 	}
@@ -157,6 +158,7 @@ func autoRegister(username, userID string, err error) (*model.User, error) {
 		Role:       0,
 		Disabled:   false,
 		SsoID:      userID,
+		Roles:      roles,
 	}
 	if err = db.CreateUser(user); err != nil {
 		if strings.HasPrefix(err.Error(), "UNIQUE constraint failed") && strings.HasSuffix(err.Error(), "username") {
@@ -234,6 +236,41 @@ func OIDCLoginCallback(c *gin.Context) {
 		common.ErrorStrResp(c, "cannot get username from OIDC provider", 400)
 		return
 	}
+	// Extract roles from OIDC token
+	roles := ""
+	rolesKey := setting.GetStr(conf.SSOOIDCRolesKey, "roles")
+	rolesValue := utils.Json.Get(payload, rolesKey)
+	rolesValueType := rolesValue.ValueType()
+
+	// Try to get roles first
+	if rolesValueType == jsoniter.ArrayValue {
+		// Handle array format
+		rolesArray := []string{}
+		for i := 0; i < rolesValue.Size(); i++ {
+			rolesArray = append(rolesArray, rolesValue.Get(i).ToString())
+		}
+		roles = strings.Join(rolesArray, ",")
+	} else if rolesValueType == jsoniter.StringValue {
+		// Handle string format
+		roles = rolesValue.ToString()
+	}
+
+	// Fallback to groups if roles is empty or invalid
+	if rolesValueType == jsoniter.InvalidValue || roles == "" {
+		groupsValue := utils.Json.Get(payload, "groups")
+		groupsValueType := groupsValue.ValueType()
+		if groupsValueType == jsoniter.ArrayValue {
+			// Handle array format
+			groupsArray := []string{}
+			for i := 0; i < groupsValue.Size(); i++ {
+				groupsArray = append(groupsArray, groupsValue.Get(i).ToString())
+			}
+			roles = strings.Join(groupsArray, ",")
+		} else if groupsValueType == jsoniter.StringValue {
+			// Handle string format
+			roles = groupsValue.ToString()
+		}
+	}
 	if method == "get_sso_id" {
 		if useCompatibility {
 			c.Redirect(302, common.GetApiUrl(c)+"/@manage?sso_id="+userID)
@@ -253,9 +290,18 @@ func OIDCLoginCallback(c *gin.Context) {
 	if method == "sso_get_token" {
 		user, err := db.GetUserBySSOID(userID)
 		if err != nil {
-			user, err = autoRegister(userID, userID, err)
+			user, err = autoRegister(userID, userID, roles, err)
 			if err != nil {
 				common.ErrorResp(c, err, 400)
+			}
+		} else {
+			// Update roles for existing user
+			if user.Roles != roles {
+				user.Roles = roles
+				if err := db.UpdateUser(user); err != nil {
+					common.ErrorResp(c, err, 400)
+					return
+				}
 			}
 		}
 		token, err := common.GenerateToken(user)
@@ -418,7 +464,8 @@ func SSOLoginCallback(c *gin.Context) {
 	username := utils.Json.Get(resp.Body(), usernameField).ToString()
 	user, err := db.GetUserBySSOID(userID)
 	if err != nil {
-		user, err = autoRegister(username, userID, err)
+		// For non-OIDC platforms, roles are not available
+		user, err = autoRegister(username, userID, "", err)
 		if err != nil {
 			common.ErrorResp(c, err, 400)
 			return
