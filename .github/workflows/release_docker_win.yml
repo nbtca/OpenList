@@ -89,7 +89,7 @@ jobs:
           $ghcrImage = "${{ env.REGISTRY }}/${{ env.GHCR_ORG_NAME }}/${{ env.IMAGE_NAME }}"
 
           $tags = @(
-            "${ghcrImage}:${tag}-windows-${winVer}",
+            "${ghcrImage}:${tag}-windows-${winVer}"
           )
 
           if ($isLatest -eq "true") {
