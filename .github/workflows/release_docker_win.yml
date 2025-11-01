@@ -33,10 +33,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  DOCKERHUB_ORG_NAME: ${{ vars.DOCKERHUB_ORG_NAME || 'openlistteam' }}
   GHCR_ORG_NAME: ${{ vars.GHCR_ORG_NAME || 'openlistteam' }}
-  IMAGE_NAME: openlist-git
-  IMAGE_NAME_DOCKERHUB: openlist
+  IMAGE_NAME: openlist
   REGISTRY: ghcr.io
   IMAGE_PUSH: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
 
@@ -65,13 +63,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Login to DockerHub Container Registry
-        if: env.IMAGE_PUSH == 'true'
-        uses: docker/login-action@v3
-        with:
-          username: ${{ vars.DOCKERHUB_ORG_NAME_BACKUP || env.DOCKERHUB_ORG_NAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
       - name: Determine tag
         id: tag
         shell: pwsh
@@ -99,19 +90,15 @@ jobs:
           $isLatest = "${{ steps.tag.outputs.is_latest }}"
 
           $ghcrImage = "${{ env.REGISTRY }}/${{ env.GHCR_ORG_NAME }}/${{ env.IMAGE_NAME }}"
-          $dockerhubImage = "${{ env.DOCKERHUB_ORG_NAME }}/${{ env.IMAGE_NAME_DOCKERHUB }}"
 
           $tags = @(
             "${ghcrImage}:${tag}-windows-${winVer}",
-            "${dockerhubImage}:${tag}-windows-${winVer}"
           )
 
           if ($isLatest -eq "true") {
             $tags += "${ghcrImage}:windows-${winVer}"
-            $tags += "${dockerhubImage}:windows-${winVer}"
             if ($winVer -eq "ltsc2025") {
               $tags += "${ghcrImage}:windows"
-              $tags += "${dockerhubImage}:windows"
             }
           }
 
