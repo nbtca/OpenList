@@ -13,6 +13,11 @@ import (
 
 // List files
 func list(ctx context.Context, path string, args *ListArgs) ([]model.Obj, error) {
+	// Check ACL permission for listing
+	if _, err := op.CheckACLPermission(ctx, path, model.ACLPermRead); err != nil {
+		return nil, err
+	}
+
 	meta, _ := ctx.Value(conf.MetaKey).(*model.Meta)
 	user, _ := ctx.Value(conf.UserKey).(*model.User)
 	virtualFiles := op.GetStorageVirtualFilesWithDetailsByPath(ctx, path, !args.WithStorageDetails, args.Refresh)
@@ -43,7 +48,39 @@ func list(ctx context.Context, path string, args *ListArgs) ([]model.Obj, error)
 		om.InitHideReg(meta.Hide)
 	}
 	objs := om.Merge(_objs, virtualFiles...)
-	return objs, nil
+
+	// Filter objects based on ACL permissions
+	filteredObjs := filterObjsByACL(ctx, objs, path)
+	return filteredObjs, nil
+}
+
+// filterObjsByACL filters objects based on ACL permissions
+func filterObjsByACL(ctx context.Context, objs []model.Obj, parentPath string) []model.Obj {
+	user, _ := ctx.Value(conf.UserKey).(*model.User)
+
+	// Admin users bypass ACL filtering
+	if user != nil && user.IsAdmin() {
+		return objs
+	}
+
+	filteredObjs := make([]model.Obj, 0, len(objs))
+	for _, obj := range objs {
+		objPath := utils.FixAndCleanPath(parentPath + "/" + obj.GetName())
+
+		// Check read permission for each object
+		if obj.IsDir() {
+			// For directories, check list permission
+			if _, err := op.CheckACLPermission(ctx, objPath, model.ACLPermRead); err == nil {
+				filteredObjs = append(filteredObjs, obj)
+			}
+		} else {
+			// For files, check read permission
+			if _, err := op.CheckACLPermission(ctx, objPath, model.ACLPermRead); err == nil {
+				filteredObjs = append(filteredObjs, obj)
+			}
+		}
+	}
+	return filteredObjs
 }
 
 func whetherHide(user *model.User, meta *model.Meta, path string) bool {

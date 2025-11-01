@@ -176,6 +176,11 @@ func Other(ctx context.Context, args model.FsOtherArgs) (interface{}, error) {
 }
 
 func PutURL(ctx context.Context, path, dstName, urlStr string) error {
+	// Check ACL permission for writing (upload via URL)
+	if _, err := op.CheckACLPermission(ctx, path, model.ACLPermWrite); err != nil {
+		return err
+	}
+
 	storage, dstDirActualPath, err := op.GetStorageAndActualPath(path)
 	if err != nil {
 		return errors.WithMessage(err, "failed get storage")

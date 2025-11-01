@@ -11,6 +11,11 @@ import (
 )
 
 func makeDir(ctx context.Context, path string, lazyCache ...bool) error {
+	// Check ACL permission for writing (create directory)
+	if _, err := op.CheckACLPermission(ctx, path, model.ACLPermWrite); err != nil {
+		return err
+	}
+
 	storage, actualPath, err := op.GetStorageAndActualPath(path)
 	if err != nil {
 		return errors.WithMessage(err, "failed get storage")
@@ -19,6 +24,11 @@ func makeDir(ctx context.Context, path string, lazyCache ...bool) error {
 }
 
 func rename(ctx context.Context, srcPath, dstName string, lazyCache ...bool) error {
+	// Check ACL permission for manage (rename)
+	if _, err := op.CheckACLPermission(ctx, srcPath, model.ACLPermManage); err != nil {
+		return err
+	}
+
 	storage, srcActualPath, err := op.GetStorageAndActualPath(srcPath)
 	if err != nil {
 		return errors.WithMessage(err, "failed get storage")
@@ -27,6 +37,11 @@ func rename(ctx context.Context, srcPath, dstName string, lazyCache ...bool) err
 }
 
 func remove(ctx context.Context, path string) error {
+	// Check ACL permission for delete
+	if _, err := op.CheckACLPermission(ctx, path, model.ACLPermDelete); err != nil {
+		return err
+	}
+
 	storage, actualPath, err := op.GetStorageAndActualPath(path)
 	if err != nil {
 		return errors.WithMessage(err, "failed get storage")

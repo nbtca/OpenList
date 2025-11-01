@@ -61,6 +61,11 @@ var UploadTaskManager *tache.Manager[*UploadTask]
 
 // putAsTask add as a put task and return immediately
 func putAsTask(ctx context.Context, dstDirPath string, file model.FileStreamer) (task.TaskExtensionInfo, error) {
+	// Check ACL permission for writing (upload)
+	if _, err := op.CheckACLPermission(ctx, dstDirPath, model.ACLPermWrite); err != nil {
+		return nil, err
+	}
+
 	storage, dstDirActualPath, err := op.GetStorageAndActualPath(dstDirPath)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed get storage")
@@ -94,6 +99,12 @@ func putAsTask(ctx context.Context, dstDirPath string, file model.FileStreamer) 
 
 // putDirect put the file and return after finish
 func putDirectly(ctx context.Context, dstDirPath string, file model.FileStreamer, lazyCache ...bool) error {
+	// Check ACL permission for writing (upload)
+	if _, err := op.CheckACLPermission(ctx, dstDirPath, model.ACLPermWrite); err != nil {
+		_ = file.Close()
+		return err
+	}
+
 	storage, dstDirActualPath, err := op.GetStorageAndActualPath(dstDirPath)
 	if err != nil {
 		_ = file.Close()

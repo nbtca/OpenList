@@ -11,6 +11,11 @@ import (
 )
 
 func link(ctx context.Context, path string, args model.LinkArgs) (*model.Link, model.Obj, error) {
+	// Check ACL permission for download
+	if _, err := op.CheckACLPermission(ctx, path, model.ACLPermDownload); err != nil {
+		return nil, nil, err
+	}
+
 	storage, actualPath, err := op.GetStorageAndActualPath(path)
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "failed get storage")

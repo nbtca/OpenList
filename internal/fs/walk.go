@@ -16,6 +16,12 @@ import (
 // WalkFS calls walkFn. If a visited file system node is a directory and
 // walkFn returns path.SkipDir, walkFS will skip traversal of this node.
 func WalkFS(ctx context.Context, depth int, name string, info model.Obj, walkFn func(reqPath string, info model.Obj) error) error {
+	// Check ACL permission for reading
+	if _, err := op.CheckACLPermission(ctx, name, model.ACLPermRead); err != nil {
+		// If no permission, skip this path
+		return nil
+	}
+
 	// This implementation is based on Walk's code in the standard path/path package.
 	walkFnErr := walkFn(name, info)
 	if walkFnErr != nil {

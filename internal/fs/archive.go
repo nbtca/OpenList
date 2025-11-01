@@ -347,6 +347,11 @@ var ArchiveContentUploadTaskManager = &archiveContentUploadTaskManagerType{
 }
 
 func archiveMeta(ctx context.Context, path string, args model.ArchiveMetaArgs) (*model.ArchiveMetaProvider, error) {
+	// Check ACL permission for reading archive
+	if _, err := op.CheckACLPermission(ctx, path, model.ACLPermRead); err != nil {
+		return nil, err
+	}
+
 	storage, actualPath, err := op.GetStorageAndActualPath(path)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed get storage")
@@ -355,6 +360,11 @@ func archiveMeta(ctx context.Context, path string, args model.ArchiveMetaArgs) (
 }
 
 func archiveList(ctx context.Context, path string, args model.ArchiveListArgs) ([]model.Obj, error) {
+	// Check ACL permission for reading archive
+	if _, err := op.CheckACLPermission(ctx, path, model.ACLPermRead); err != nil {
+		return nil, err
+	}
+
 	storage, actualPath, err := op.GetStorageAndActualPath(path)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed get storage")
@@ -363,6 +373,16 @@ func archiveList(ctx context.Context, path string, args model.ArchiveListArgs) (
 }
 
 func archiveDecompress(ctx context.Context, srcObjPath, dstDirPath string, args model.ArchiveDecompressArgs, lazyCache ...bool) (task.TaskExtensionInfo, error) {
+	// Check ACL permissions for decompressing archive
+	// Need read permission on source
+	if _, err := op.CheckACLPermission(ctx, srcObjPath, model.ACLPermRead); err != nil {
+		return nil, errors.WithMessage(err, "no permission to read source archive")
+	}
+	// Need write permission on destination
+	if _, err := op.CheckACLPermission(ctx, dstDirPath, model.ACLPermWrite); err != nil {
+		return nil, errors.WithMessage(err, "no permission to write to destination")
+	}
+
 	srcStorage, srcObjActualPath, err := op.GetStorageAndActualPath(srcObjPath)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed get src storage")
@@ -413,6 +433,11 @@ func archiveDecompress(ctx context.Context, srcObjPath, dstDirPath string, args 
 }
 
 func archiveDriverExtract(ctx context.Context, path string, args model.ArchiveInnerArgs) (*model.Link, model.Obj, error) {
+	// Check ACL permission for reading archive
+	if _, err := op.CheckACLPermission(ctx, path, model.ACLPermRead); err != nil {
+		return nil, nil, err
+	}
+
 	storage, actualPath, err := op.GetStorageAndActualPath(path)
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "failed get storage")
@@ -421,6 +446,11 @@ func archiveDriverExtract(ctx context.Context, path string, args model.ArchiveIn
 }
 
 func archiveInternalExtract(ctx context.Context, path string, args model.ArchiveInnerArgs) (io.ReadCloser, int64, error) {
+	// Check ACL permission for reading archive
+	if _, err := op.CheckACLPermission(ctx, path, model.ACLPermRead); err != nil {
+		return nil, 0, err
+	}
+
 	storage, actualPath, err := op.GetStorageAndActualPath(path)
 	if err != nil {
 		return nil, 0, errors.WithMessage(err, "failed get storage")

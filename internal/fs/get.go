@@ -13,6 +13,12 @@ import (
 
 func get(ctx context.Context, path string, args *GetArgs) (model.Obj, error) {
 	path = utils.FixAndCleanPath(path)
+
+	// Check ACL permission for reading
+	if _, err := op.CheckACLPermission(ctx, path, model.ACLPermRead); err != nil {
+		return nil, err
+	}
+
 	// maybe a virtual file
 	if path != "/" {
 		virtualFiles := op.GetStorageVirtualFilesWithDetailsByPath(ctx, stdpath.Dir(path), !args.WithStorageDetails, false)

@@ -99,6 +99,22 @@ func (t *FileTransferTask) SetRetry(retry int, maxRetry int) {
 }
 
 func transfer(ctx context.Context, taskType taskType, srcObjPath, dstDirPath string, lazyCache ...bool) (task.TaskExtensionInfo, error) {
+	// Check ACL permissions
+	// For source: need read permission
+	if _, err := op.CheckACLPermission(ctx, srcObjPath, model.ACLPermRead); err != nil {
+		return nil, errors.WithMessage(err, "no permission to read source")
+	}
+	// For destination: need manage permission (for copy/move operations)
+	if _, err := op.CheckACLPermission(ctx, dstDirPath, model.ACLPermManage); err != nil {
+		return nil, errors.WithMessage(err, "no permission to write to destination")
+	}
+	// For move: also need delete permission on source
+	if taskType == move {
+		if _, err := op.CheckACLPermission(ctx, srcObjPath, model.ACLPermDelete); err != nil {
+			return nil, errors.WithMessage(err, "no permission to delete source")
+		}
+	}
+
 	srcStorage, srcObjActualPath, err := op.GetStorageAndActualPath(srcObjPath)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed get src storage")
