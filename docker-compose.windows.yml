@@ -12,16 +12,19 @@ services:
         WINDOWS_VERSION: ltsc2022
     container_name: openlist-windows
     restart: unless-stopped
-
+    network_mode: nat
+    tty: true
+    attach: true
     ports:
       - "5244:5244"
       - "5245:5245"
-
+    # entrypoint: ["cmd"]
+    # command: [""]
     volumes:
       # Use Windows path for volume mounting
       # Modify the path according to your needs
       - type: bind
-        source: C:\openlist-data
+        source: ./data
         target: C:\openlist\data
 
     environment:
