@@ -39,7 +39,7 @@ jobs:
     runs-on: windows-${{ matrix.windows_version }}
     strategy:
       matrix:
-        windows_version: ["2025", "2022", "2019"]
+        windows_version: ["ltsc2025", "ltsc2022", "ltsc2019"]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -57,7 +57,7 @@ jobs:
         shell: pwsh
         run: |
           $tag = "${{ github.ref_name }}"
-          $windowsVersion = "ltsc${{ matrix.windows_version }}"
+          $windowsVersion = "${{ matrix.windows_version }}"
 
           $isPush = "${{ github.event_name == 'push' }}"
           $isManualLatest = "${{ github.event.inputs.as_latest == 'true' }}"
@@ -66,7 +66,7 @@ jobs:
           } else {
             $isLatest = "false"
           }
-
+            
           echo "tag=$tag" >> $env:GITHUB_OUTPUT
           echo "windows_version=$windowsVersion" >> $env:GITHUB_OUTPUT
           echo "is_latest=$isLatest" >> $env:GITHUB_OUTPUT
