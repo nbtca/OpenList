@@ -2,6 +2,7 @@ package op
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -53,11 +54,22 @@ func CheckACLPermission(ctx context.Context, path string, requiredPerm int32) (*
 		return nil, nil
 	}
 
+	normalizedPath := normalizePath(path)
+	requiredPermName := getPermissionName(requiredPerm)
+
 	// Guest users are subject to ACL
 	// Get user's roles
 	userRoles := getUserRoles(user)
 	if len(userRoles) == 0 {
-		return nil, errors.WithStack(errs.PermissionDenied)
+		utils.Log.Warnf("ACL denied: user=%d(%s) has no roles (path: %s, required: %s)",
+			user.ID, user.Username, normalizedPath, requiredPermName)
+		return nil, errors.WithStack(errs.NewACLPermissionDeniedError(
+			normalizedPath,
+			requiredPermName,
+			userRoles,
+			nil,
+			"no_roles",
+		))
 	}
 
 	// Get all ACL rules
@@ -68,7 +80,6 @@ func CheckACLPermission(ctx context.Context, path string, requiredPerm int32) (*
 
 	// Find matching rules for user's roles
 	var matchedRule *model.ACLRule
-	normalizedPath := normalizePath(path)
 
 	for _, rule := range allRules {
 		// Check if rule applies to any of the user's roles
@@ -86,12 +97,36 @@ func CheckACLPermission(ctx context.Context, path string, requiredPerm int32) (*
 
 	if matchedRule == nil {
 		// No matching rule found, deny access
-		return nil, errors.WithStack(errs.PermissionDenied)
+		utils.Log.Warnf("ACL denied: user=%d(%s) roles=%v no matching rule (path: %s, required: %s)",
+			user.ID, user.Username, userRoles, normalizedPath, requiredPermName)
+		return nil, errors.WithStack(errs.NewACLPermissionDeniedError(
+			normalizedPath,
+			requiredPermName,
+			userRoles,
+			nil,
+			"no_matching_rule",
+		))
 	}
 
 	// Check if the matched rule has the required permission
 	if !matchedRule.HasPermission(requiredPerm) {
-		return nil, errors.WithStack(errs.PermissionDenied)
+		utils.Log.Warnf("ACL denied: user=%d(%s) role=%s rule_id=%d insufficient permission (path: %s, rule_path: %s, has: %d, required: %s)",
+			user.ID, user.Username, matchedRule.Role, matchedRule.ID, normalizedPath, matchedRule.Path, matchedRule.Permissions, requiredPermName)
+		
+		ruleInfo := &errs.ACLRuleInfo{
+			RulePath:    matchedRule.Path,
+			Role:        matchedRule.Role,
+			Permissions: getPermissionNames(matchedRule.Permissions),
+			Priority:    matchedRule.Priority,
+		}
+		
+		return nil, errors.WithStack(errs.NewACLPermissionDeniedError(
+			normalizedPath,
+			requiredPermName,
+			userRoles,
+			ruleInfo,
+			"insufficient_permission",
+		))
 	}
 
 	utils.Log.Infof("ACL matched: user=%d(%s) role=%s rule_id=%d path=%s permissions=%d required=%d",
@@ -226,4 +261,48 @@ func pathMatches(path, pattern string) bool {
 	}
 
 	return false
+}
+
+// getPermissionName returns a human-readable name for a permission bit
+func getPermissionName(perm int32) string {
+	switch perm {
+	case model.ACLPermRead:
+		return "Read"
+	case model.ACLPermWrite:
+		return "Write"
+	case model.ACLPermDelete:
+		return "Delete"
+	case model.ACLPermManage:
+		return "Manage"
+	case model.ACLPermShare:
+		return "Share"
+	case model.ACLPermDownload:
+		return "Download"
+	default:
+		return fmt.Sprintf("Unknown(%d)", perm)
+	}
+}
+
+// getPermissionNames returns a list of human-readable permission names
+func getPermissionNames(perms int32) []string {
+	names := []string{}
+	if perms&model.ACLPermRead != 0 {
+		names = append(names, "Read")
+	}
+	if perms&model.ACLPermWrite != 0 {
+		names = append(names, "Write")
+	}
+	if perms&model.ACLPermDelete != 0 {
+		names = append(names, "Delete")
+	}
+	if perms&model.ACLPermManage != 0 {
+		names = append(names, "Manage")
+	}
+	if perms&model.ACLPermShare != 0 {
+		names = append(names, "Share")
+	}
+	if perms&model.ACLPermDownload != 0 {
+		names = append(names, "Download")
+	}
+	return names
 }
