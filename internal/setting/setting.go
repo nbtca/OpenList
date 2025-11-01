@@ -3,11 +3,11 @@ package setting
 import (
 	"strconv"
 
-	"github.com/OpenListTeam/OpenList/v4/internal/op"
+	"github.com/OpenListTeam/OpenList/v4/internal/db"
 )
 
 func GetStr(key string, defaultValue ...string) string {
-	val, _ := op.GetSettingItemByKey(key)
+	val, _ := db.GetSettingItemByKey(key)
 	if val == nil {
 		if len(defaultValue) > 0 {
 			return defaultValue[0]

@@ -59,6 +59,7 @@ type User struct {
 	OtpSecret  string `json:"-"`
 	SsoID      string `json:"sso_id"` // unique by sso platform
 	Authn      string `gorm:"type:text" json:"-"`
+	Roles      string `json:"roles"` // comma-separated OIDC roles for ACL
 }
 
 func (u *User) IsGuest() bool {

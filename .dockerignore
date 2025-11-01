@@ -1,0 +1,14 @@
+# Git files
+.git
+.gitignore
+.github
+
+# Documentation
+*.md
+*.exe
+
+docker-compose.windows.yml
+docker-compose.yml
+Dockerfile
+Dockerfile.ci
+Dockerfile.windows

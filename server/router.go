@@ -105,6 +105,7 @@ func Init(e *gin.Engine) {
 	fsAndShare(api.Group("/fs", middlewares.Auth(true)))
 	_task(auth.Group("/task", middlewares.AuthNotGuest))
 	_sharing(auth.Group("/share", middlewares.AuthNotGuest))
+	auth.POST("/acl/info", handles.GetPathACLInfo)
 	admin(auth.Group("/admin", middlewares.AuthAdmin))
 	if flags.Debug || flags.Dev {
 		debug(g.Group("/debug"))
@@ -179,6 +180,13 @@ func admin(g *gin.RouterGroup) {
 	index.POST("/stop", middlewares.SearchIndex, handles.StopIndex)
 	index.POST("/clear", middlewares.SearchIndex, handles.ClearIndex)
 	index.GET("/progress", middlewares.SearchIndex, handles.GetProgress)
+
+	acl := g.Group("/acl")
+	acl.GET("/list", handles.ListACLRules)
+	acl.GET("/get", handles.GetACLRule)
+	acl.POST("/create", handles.CreateACLRule)
+	acl.POST("/update", handles.UpdateACLRule)
+	acl.POST("/delete", handles.DeleteACLRule)
 }
 
 func fsAndShare(g *gin.RouterGroup) {
