@@ -36,10 +36,10 @@ permissions:
 jobs:
   release_docker_windows:
     name: Release Windows Docker image
-    runs-on: windows-latest
+    runs-on: windows-${{ matrix.windows_version }}
     strategy:
       matrix:
-        windows_version: ["ltsc2025", "ltsc2022", "ltsc2019", "ltsc2016"]
+        windows_version: ["2025", "2022"]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -57,7 +57,7 @@ jobs:
         shell: pwsh
         run: |
           $tag = "${{ github.ref_name }}"
-          $windowsVersion = "${{ matrix.windows_version }}"
+          $windowsVersion = "ltsc${{ matrix.windows_version }}"
 
           $isPush = "${{ github.event_name == 'push' }}"
           $isManualLatest = "${{ github.event.inputs.as_latest == 'true' }}"
@@ -66,7 +66,7 @@ jobs:
           } else {
             $isLatest = "false"
           }
-            
+
           echo "tag=$tag" >> $env:GITHUB_OUTPUT
           echo "windows_version=$windowsVersion" >> $env:GITHUB_OUTPUT
           echo "is_latest=$isLatest" >> $env:GITHUB_OUTPUT
