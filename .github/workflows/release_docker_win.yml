@@ -7,6 +7,7 @@ on:
         description: "Tag name (like v0.1.0). Required if as_latest is true."
         required: false
         type: string
+        default: latest
       as_latest:
         description: "Tag as latest?"
         required: true
@@ -15,15 +16,6 @@ on:
         options:
           - "true"
           - "false"
-      windows_version:
-        description: "Windows Server version"
-        required: true
-        default: "ltsc2025"
-        type: choice
-        options:
-          - "ltsc2025"
-          - "ltsc2022"
-          - "ltsc2019"
   push:
     tags:
       - "v*"
@@ -33,7 +25,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GHCR_ORG_NAME: ${{ vars.GHCR_ORG_NAME || 'openlistteam' }}
+  GHCR_ORG_NAME: ${{ vars.GHCR_ORG_NAME || 'nbtca' }}
   IMAGE_NAME: openlist
   REGISTRY: ghcr.io
   IMAGE_PUSH: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
@@ -44,7 +36,7 @@ permissions:
 jobs:
   release_docker_windows:
     name: Release Windows Docker image
-    runs-on: windows-2022
+    runs-on: windows-${{ matrix.windows_version }}
     strategy:
       matrix:
         windows_version: ["ltsc2025", "ltsc2022", "ltsc2019"]
@@ -64,16 +56,17 @@ jobs:
         id: tag
         shell: pwsh
         run: |
-          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
-            $tag = "${{ github.event.inputs.manual_tag }}"
-            $windowsVersion = "${{ github.event.inputs.windows_version }}"
+          $tag = "${{ github.ref_name }}"
+          $windowsVersion = "${{ matrix.windows_version }}"
+
+          $isPush = "${{ github.event_name == 'push' }}"
+          $isManualLatest = "${{ github.event.inputs.as_latest == 'true' }}"
+          if ($isPush -eq "true" -or $isManualLatest -eq "true") {
+            $isLatest = "true"
           } else {
-            $tag = "${{ github.ref_name }}"
-            $windowsVersion = "${{ matrix.windows_version }}"
+            $isLatest = "false"
           }
-
-          $isLatest = "${{ github.event_name == 'push' || github.event.inputs.as_latest == 'true' }}"
-
+            
           echo "tag=$tag" >> $env:GITHUB_OUTPUT
           echo "windows_version=$windowsVersion" >> $env:GITHUB_OUTPUT
           echo "is_latest=$isLatest" >> $env:GITHUB_OUTPUT
