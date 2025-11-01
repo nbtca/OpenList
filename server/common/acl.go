@@ -4,7 +4,6 @@ import (
 	"github.com/OpenListTeam/OpenList/v4/internal/model"
 	"github.com/OpenListTeam/OpenList/v4/internal/op"
 	"github.com/gin-gonic/gin"
-	"github.com/pkg/errors"
 )
 
 // CheckACL checks if the user has the required ACL permission for a path

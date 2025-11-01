@@ -9,7 +9,6 @@ import (
 	"github.com/OpenListTeam/OpenList/v4/internal/db"
 	"github.com/OpenListTeam/OpenList/v4/internal/errs"
 	"github.com/OpenListTeam/OpenList/v4/internal/model"
-	"github.com/OpenListTeam/OpenList/v4/internal/setting"
 	"github.com/pkg/errors"
 )
 
@@ -41,12 +40,12 @@ func DeleteACLRuleByID(id uint) error {
 // CheckACLPermission checks if the user has the required permission for a path
 func CheckACLPermission(ctx context.Context, path string, requiredPerm int32) (*model.ACLMatchedRule, error) {
 	// Check if ACL is enabled
-	if !setting.GetBool(conf.ACLEnabled) {
+	if !isACLEnabled() {
 		return nil, nil
 	}
 
 	user := ctx.Value(conf.UserKey).(*model.User)
-	
+
 	// Admin users bypass ACL
 	if user.IsAdmin() {
 		return nil, nil
@@ -103,12 +102,12 @@ func CheckACLPermission(ctx context.Context, path string, requiredPerm int32) (*
 // GetMatchedACLRule returns the matched ACL rule for a user and path (for display purposes)
 func GetMatchedACLRule(ctx context.Context, path string) (*model.ACLMatchedRule, error) {
 	// Check if ACL is enabled
-	if !setting.GetBool(conf.ACLEnabled) {
+	if !isACLEnabled() {
 		return nil, nil
 	}
 
 	user := ctx.Value(conf.UserKey).(*model.User)
-	
+
 	// Admin users bypass ACL
 	if user.IsAdmin() {
 		return &model.ACLMatchedRule{
@@ -155,6 +154,16 @@ func GetMatchedACLRule(ctx context.Context, path string) (*model.ACLMatchedRule,
 }
 
 // Helper functions
+
+// isACLEnabled checks if ACL is enabled by directly querying the database
+// to avoid circular dependency with setting package
+func isACLEnabled() bool {
+	setting, err := db.GetSettingItemByKey(conf.ACLEnabled)
+	if err != nil || setting == nil {
+		return false
+	}
+	return setting.Value == "true" || setting.Value == "1"
+}
 
 func getUserRoles(user *model.User) []string {
 	if user.Roles == "" {
