@@ -36,10 +36,10 @@ permissions:
 jobs:
   release_docker_windows:
     name: Release Windows Docker image
-    runs-on: windows-${{ matrix.windows_version }}
+    runs-on: windows-latest
     strategy:
       matrix:
-        windows_version: ["ltsc2025", "ltsc2022", "ltsc2019"]
+        windows_version: ["ltsc2025", "ltsc2022", "ltsc2019", "ltsc2016"]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
