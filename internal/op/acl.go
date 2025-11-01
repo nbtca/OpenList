@@ -3,12 +3,14 @@ package op
 import (
 	"context"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/OpenListTeam/OpenList/v4/internal/conf"
 	"github.com/OpenListTeam/OpenList/v4/internal/db"
 	"github.com/OpenListTeam/OpenList/v4/internal/errs"
 	"github.com/OpenListTeam/OpenList/v4/internal/model"
+	"github.com/OpenListTeam/OpenList/v4/pkg/utils"
 	"github.com/pkg/errors"
 )
 
@@ -92,6 +94,9 @@ func CheckACLPermission(ctx context.Context, path string, requiredPerm int32) (*
 		return nil, errors.WithStack(errs.PermissionDenied)
 	}
 
+	utils.Log.Infof("ACL matched: user=%d(%s) role=%s rule_id=%d path=%s permissions=%d required=%d",
+		user.ID, user.Username, matchedRule.Role, matchedRule.ID, normalizedPath, matchedRule.Permissions, requiredPerm)
+
 	return &model.ACLMatchedRule{
 		Rule:        matchedRule,
 		Permissions: matchedRule.Permissions,
@@ -145,6 +150,8 @@ func GetMatchedACLRule(ctx context.Context, path string) (*model.ACLMatchedRule,
 	if matchedRule == nil {
 		return nil, nil
 	}
+	utils.Log.Infof("ACL matched (preview): user=%d(%s) role=%s rule_id=%d path=%s permissions=%d",
+		user.ID, user.Username, matchedRule.Role, matchedRule.ID, normalizedPath, matchedRule.Permissions)
 
 	return &model.ACLMatchedRule{
 		Rule:        matchedRule,
@@ -177,12 +184,10 @@ func getUserRoles(user *model.User) []string {
 }
 
 func containsRole(roles []string, role string) bool {
-	for _, r := range roles {
-		if r == role {
-			return true
-		}
+	if role == "*" {
+		return true
 	}
-	return false
+	return slices.Contains(roles, role)
 }
 
 func normalizePath(path string) string {
@@ -211,9 +216,6 @@ func pathMatches(path, pattern string) bool {
 	// Pattern with wildcard
 	if strings.HasSuffix(pattern, "/*") {
 		prefix := strings.TrimSuffix(pattern, "/*")
-		if prefix == "" {
-			prefix = "/"
-		}
 		// Check if path is under this directory
 		return strings.HasPrefix(path, prefix+"/") || path == prefix
 	}
