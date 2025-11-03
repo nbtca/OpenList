@@ -48,6 +48,9 @@ func CheckACLPermission(ctx context.Context, path string, requiredPerm int32) (*
 	}
 
 	user := ctx.Value(conf.UserKey).(*model.User)
+	if user == nil {
+		return nil, errors.New("user not found in context")
+	}
 
 	// Admin users bypass ACL
 	if user.IsAdmin() {
@@ -60,17 +63,17 @@ func CheckACLPermission(ctx context.Context, path string, requiredPerm int32) (*
 	// Guest users are subject to ACL
 	// Get user's roles
 	userRoles := getUserRoles(user)
-	if len(userRoles) == 0 {
-		utils.Log.Warnf("ACL denied: user=%d(%s) has no roles (path: %s, required: %s)",
-			user.ID, user.Username, normalizedPath, requiredPermName)
-		return nil, errors.WithStack(errs.NewACLPermissionDeniedError(
-			normalizedPath,
-			requiredPermName,
-			userRoles,
-			nil,
-			"no_roles",
-		))
-	}
+	// if len(userRoles) == 0 {
+	// 	utils.Log.Warnf("ACL denied: user=%d(%s) has no roles (path: %s, required: %s)",
+	// 		user.ID, user.Username, normalizedPath, requiredPermName)
+	// 	return nil, errors.WithStack(errs.NewACLPermissionDeniedError(
+	// 		normalizedPath,
+	// 		requiredPermName,
+	// 		userRoles,
+	// 		nil,
+	// 		"no_roles",
+	// 	))
+	// }
 
 	// Get all ACL rules
 	allRules, err := db.GetACLRules()
@@ -112,14 +115,14 @@ func CheckACLPermission(ctx context.Context, path string, requiredPerm int32) (*
 	if !matchedRule.HasPermission(requiredPerm) {
 		utils.Log.Warnf("ACL denied: user=%d(%s) role=%s rule_id=%d insufficient permission (path: %s, rule_path: %s, has: %d, required: %s)",
 			user.ID, user.Username, matchedRule.Role, matchedRule.ID, normalizedPath, matchedRule.Path, matchedRule.Permissions, requiredPermName)
-		
+
 		ruleInfo := &errs.ACLRuleInfo{
 			RulePath:    matchedRule.Path,
 			Role:        matchedRule.Role,
 			Permissions: getPermissionNames(matchedRule.Permissions),
 			Priority:    matchedRule.Priority,
 		}
-		
+
 		return nil, errors.WithStack(errs.NewACLPermissionDeniedError(
 			normalizedPath,
 			requiredPermName,
