@@ -46,12 +46,11 @@ func CheckACLPermission(ctx context.Context, path string, requiredPerm int32) (*
 	if !isACLEnabled() {
 		return nil, nil
 	}
-
-	user := ctx.Value(conf.UserKey).(*model.User)
-	if user == nil {
+	userRaw := ctx.Value(conf.UserKey)
+	if userRaw == nil {
 		return nil, errors.New("user not found in context")
 	}
-
+	user := userRaw.(*model.User)
 	// Admin users bypass ACL
 	if user.IsAdmin() {
 		return nil, nil
