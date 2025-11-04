@@ -294,7 +294,35 @@ func renameFile(srcPath, dstPath string, replace bool) error {
 	if utils.Exists(dstPath) && !replace {
 		return fmt.Errorf("destination file %s already exists", dstPath)
 	}
-	return atomic.ReplaceFile(srcPath, dstPath)
+	err := atomic.ReplaceFile(srcPath, dstPath)
+	if err != nil {
+		println("atomic rename failed:", err, " src:", srcPath, " dst:", dstPath)
+		// Fall back to copy + delete
+		err2 := cp.Copy(srcPath, dstPath, cp.Options{
+			Sync:          true,
+			PreserveTimes: true,
+			PreserveOwner: true,
+		})
+		if err2 != nil {
+			return fmt.Errorf("Rename failed: %s to %s: %w, failed to copy %s to %s: %w", srcPath, dstPath, err, srcPath, dstPath, err2)
+		}
+		// Copy succeeded, delete the source
+		info, err2 := os.Lstat(srcPath)
+		if err2 != nil {
+			return fmt.Errorf("failed to stat source file %s after copy: %w", srcPath, err2)
+		}
+		if info.IsDir() {
+			err2 = os.RemoveAll(srcPath)
+		} else {
+			err2 = os.Remove(srcPath)
+		}
+		if err2 != nil {
+			return fmt.Errorf("failed to remove source file %s after copy: %w", srcPath, err2)
+		}
+		// Remove succeeded
+		return nil
+	}
+	return nil
 }
 func (d *Local) Move(ctx context.Context, srcObj, dstDir model.Obj) error {
 	srcPath := srcObj.GetPath()
