@@ -101,9 +101,9 @@ require (
 	github.com/ebitengine/purego v0.8.4 // indirect
 	github.com/emersion/go-message v0.18.2 // indirect
 	github.com/emersion/go-vcard v0.0.0-20241024213814-c9703dde27ff // indirect
-	github.com/henrybear327/go-proton-api v1.0.0 // indirect
 	github.com/geoffgarside/ber v1.2.0 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
+	github.com/henrybear327/go-proton-api v1.0.0 // indirect
 	github.com/jcmturner/aescts/v2 v2.0.0 // indirect
 	github.com/jcmturner/dnsutils/v2 v2.0.0 // indirect
 	github.com/jcmturner/gofork v1.7.6 // indirect
@@ -116,12 +116,12 @@ require (
 	github.com/minio/xxml v0.0.3 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/otiai10/mint v1.6.3 // indirect
-	github.com/relvacode/iso8601 v1.6.0 // indirect
-	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
-	golang.org/x/exp v0.0.0-20250606033433-dcc06ee1d476 // indirect
 	github.com/quic-go/qpack v0.5.1 // indirect
+	github.com/relvacode/iso8601 v1.6.0 // indirect
+	github.com/sdassow/atomic v0.0.1 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	go.uber.org/mock v0.5.0 // indirect
+	golang.org/x/exp v0.0.0-20250606033433-dcc06ee1d476 // indirect
 	golang.org/x/mod v0.27.0 // indirect
 	gopkg.in/go-jose/go-jose.v2 v2.6.3 // indirect
 )

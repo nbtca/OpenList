@@ -24,6 +24,7 @@ import (
 	"github.com/OpenListTeam/OpenList/v4/server/common"
 	"github.com/OpenListTeam/times"
 	cp "github.com/otiai10/copy"
+	atomic "github.com/sdassow/atomic"
 	log "github.com/sirupsen/logrus"
 	_ "golang.org/x/image/webp"
 )
@@ -289,14 +290,19 @@ func (d *Local) MakeDir(ctx context.Context, parentDir model.Obj, dirName string
 	}
 	return nil
 }
-
+func renameFile(srcPath, dstPath string, replace bool) error {
+	if utils.Exists(dstPath) && !replace {
+		return fmt.Errorf("destination file %s already exists", dstPath)
+	}
+	return atomic.ReplaceFile(srcPath, dstPath)
+}
 func (d *Local) Move(ctx context.Context, srcObj, dstDir model.Obj) error {
 	srcPath := srcObj.GetPath()
 	dstPath := filepath.Join(dstDir.GetPath(), srcObj.GetName())
 	if utils.IsSubPath(srcPath, dstPath) {
 		return fmt.Errorf("the destination folder is a subfolder of the source folder")
 	}
-	err := os.Rename(srcPath, dstPath)
+	err := renameFile(srcPath, dstPath, false)
 	if err != nil && strings.Contains(err.Error(), "invalid cross-device link") {
 		// 跨设备移动，先复制再删除
 		if err := d.Copy(ctx, srcObj, dstDir); err != nil {
@@ -326,7 +332,7 @@ func (d *Local) Move(ctx context.Context, srcObj, dstDir model.Obj) error {
 func (d *Local) Rename(ctx context.Context, srcObj model.Obj, newName string) error {
 	srcPath := srcObj.GetPath()
 	dstPath := filepath.Join(filepath.Dir(srcPath), newName)
-	err := os.Rename(srcPath, dstPath)
+	err := renameFile(srcPath, dstPath, false)
 	if err != nil {
 		return err
 	}
@@ -393,7 +399,7 @@ func (d *Local) Remove(ctx context.Context, obj model.Obj) error {
 		if utils.Exists(dstPath) {
 			dstPath = filepath.Join(recycleBinPath, objName+"_"+time.Now().Format("20060102150405"))
 		}
-		err = os.Rename(objPath, dstPath)
+		err = renameFile(objPath, dstPath, false)
 	}
 	if err != nil {
 		return err
