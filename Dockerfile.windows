@@ -1,4 +1,5 @@
 ARG WINDOWS_VERSION=ltsc2022
+ARG WINDOWS_TYPE=nanoserver
 FROM mcr.microsoft.com/windows/servercore:${WINDOWS_VERSION} AS frontend
 # Use PowerShell as the default shell
 SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
@@ -95,7 +96,7 @@ RUN go build -trimpath -ldflags='-s -w -extldflags \"-static\"' -o openlist.exe 
 # -a----         6/11/2025   5:21 AM          38528 vcruntime140_threads.dll
 
 # FROM mcr.microsoft.com/windows/servercore:${WINDOWS_VERSION}
-FROM mcr.microsoft.com/windows/nanoserver:${WINDOWS_VERSION}
+FROM mcr.microsoft.com/windows/${WINDOWS_TYPE}:${WINDOWS_VERSION}
 
 WORKDIR C:/openlist
 

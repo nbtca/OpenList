@@ -40,6 +40,7 @@ jobs:
     strategy:
       matrix:
         windows_version: ["2025", "2022"]
+        container_type: ["nanoserver", "servercore"]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -78,17 +79,19 @@ jobs:
           $tag = "${{ steps.tag.outputs.tag }}"
           $winVer = "${{ steps.tag.outputs.windows_version }}"
           $isLatest = "${{ steps.tag.outputs.is_latest }}"
+          $containerType = "${{ matrix.container_type }}"
 
           $ghcrImage = "${{ env.REGISTRY }}/${{ env.GHCR_ORG_NAME }}/${{ env.IMAGE_NAME }}"
 
+          # include container type in tags so we can distinguish nanoserver/servercore builds
           $tags = @(
-            "${ghcrImage}:${tag}-windows-${winVer}"
+            "${ghcrImage}:${tag}-windows-${winVer}-${containerType}"
           )
 
           if ($isLatest -eq "true") {
-            $tags += "${ghcrImage}:windows-${winVer}"
+            $tags += "${ghcrImage}:windows-${winVer}-${containerType}"
             if ($winVer -eq "ltsc2025") {
-              $tags += "${ghcrImage}:windows"
+              $tags += "${ghcrImage}:windows-${containerType}"
             }
           }
 
@@ -108,6 +111,7 @@ jobs:
 
           docker build `
             --build-arg WINDOWS_VERSION=${{ steps.tag.outputs.windows_version }} `
+            --build-arg WINDOWS_TYPE=${{ matrix.container_type }} `
             -f Dockerfile.windows `
             $tagArgs `
             .
