@@ -45,13 +45,13 @@ RUN Remove-Item C:/7zip.msi -Force
 # RUN Invoke-WebRequest -Uri https://github.com/niXman/mingw-builds-binaries/releases/download/15.2.0-rt_v13-rev0/x86_64-15.2.0-release-mcf-seh-ucrt-rt_v13-rev0.7z -OutFile C:/mingw.7z; & 'C:\\Program Files\\7-Zip\\7z.exe' x C:/mingw.7z -oC:/ -y; Remove-Item C:/mingw.7z -Force
 
 # Use llvm-mingw-MSVCRT version instead of UCRT
-RUN Invoke-WebRequest -Uri https://github.com/mstorsjo/llvm-mingw/releases/download/20251021/llvm-mingw-20251021-msvcrt-x86_64.zip -OutFile C:/mingw.zip; & 'C:\\Program Files\\7-Zip\\7z.exe' x C:/mingw.zip -oC:/ -y; Remove-Item C:/mingw.zip -Force;
-RUN [Environment]::SetEnvironmentVariable('Path', $env:Path + ';C:\\llvm-mingw-20251021-msvcrt-x86_64\\bin', [EnvironmentVariableTarget]::Machine)
+# RUN Invoke-WebRequest -Uri https://github.com/mstorsjo/llvm-mingw/releases/download/20251021/llvm-mingw-20251021-msvcrt-x86_64.zip -OutFile C:/mingw.zip; & 'C:\\Program Files\\7-Zip\\7z.exe' x C:/mingw.zip -oC:/ -y; Remove-Item C:/mingw.zip -Force;
+# RUN [Environment]::SetEnvironmentVariable('Path', $env:Path + ';C:\\llvm-mingw-20251021-msvcrt-x86_64\\bin', [EnvironmentVariableTarget]::Machine)
 
 # # Use MSVCRT version instead of UCRT
-# RUN Invoke-WebRequest -Uri https://github.com/brechtsanders/winlibs_mingw/releases/download/15.2.0posix-13.0.0-msvcrt-r2/winlibs-x86_64-posix-seh-gcc-15.2.0-mingw-w64msvcrt-13.0.0-r2.7z -OutFile C:/mingw.zip; & 'C:\\Program Files\\7-Zip\\7z.exe' x C:/mingw.zip -oC:/ -y; Remove-Item C:/mingw.zip -Force
-# # Add MinGW to PATH #ref https://stackoverflow.com/questions/42092932/appending-to-path-in-a-windows-docker-container
-# RUN [Environment]::SetEnvironmentVariable('Path', $env:Path + ';C:\\mingw64\\bin', [EnvironmentVariableTarget]::Machine)
+RUN Invoke-WebRequest -Uri https://github.com/brechtsanders/winlibs_mingw/releases/download/15.2.0posix-13.0.0-msvcrt-r2/winlibs-x86_64-posix-seh-gcc-15.2.0-mingw-w64msvcrt-13.0.0-r2.7z -OutFile C:/mingw.zip; & 'C:\\Program Files\\7-Zip\\7z.exe' x C:/mingw.zip -oC:/ -y; Remove-Item C:/mingw.zip -Force
+# Add MinGW to PATH #ref https://stackoverflow.com/questions/42092932/appending-to-path-in-a-windows-docker-container
+RUN [Environment]::SetEnvironmentVariable('Path', $env:Path + ';C:\\mingw64\\bin', [EnvironmentVariableTarget]::Machine)
 
 
 # Set environment variables for CGO
