@@ -49,13 +49,14 @@ type ObjResp struct {
 }
 
 type FsListResp struct {
-	Content     []ObjResp `json:"content"`
-	Total       int64     `json:"total"`
-	Readme      string    `json:"readme"`
-	Header      string    `json:"header"`
-	Write       bool      `json:"write"`
-	Provider    string    `json:"provider"`
-	Permissions int32     `json:"permissions"` // ACL permissions bitmask
+	Content           []ObjResp `json:"content"`
+	Total             int64     `json:"total"`
+	Readme            string    `json:"readme"`
+	Header            string    `json:"header"`
+	Write             bool      `json:"write"`
+	Provider          string    `json:"provider"`
+	Permissions       int32     `json:"permissions"` // ACL permissions bitmask
+	DirectUploadTools []string  `json:"direct_upload_tools,omitempty"`
 }
 
 func FsListSplit(c *gin.Context) {
@@ -110,18 +111,21 @@ func FsList(c *gin.Context, req *ListReq, user *model.User) {
 	}
 	total, objs := pagination(objs, &req.PageReq)
 	provider := "unknown"
-	storage, err := fs.GetStorage(reqPath, &fs.GetStoragesArgs{})
-	if err == nil {
-		provider = storage.GetStorage().Driver
+	var directUploadTools []string
+	if user.CanWrite() {
+		if storage, err := fs.GetStorage(reqPath, &fs.GetStoragesArgs{}); err == nil {
+			directUploadTools = op.GetDirectUploadTools(storage)
+		}
 	}
 	common.SuccessResp(c, FsListResp{
-		Content:     toObjsResp(objs, reqPath, isEncrypt(meta, reqPath)),
-		Total:       int64(total),
-		Readme:      getReadme(meta, reqPath),
-		Header:      getHeader(meta, reqPath),
-		Write:       user.CanWrite() || common.CanWrite(meta, reqPath),
-		Provider:    provider,
-		Permissions: common.GetACLPermissions(c, reqPath),
+		Content:           toObjsResp(objs, reqPath, isEncrypt(meta, reqPath)),
+		Total:             int64(total),
+		Readme:            getReadme(meta, reqPath),
+		Header:            getHeader(meta, reqPath),
+		Write:             user.CanWrite() || common.CanWrite(meta, reqPath),
+		Provider:          provider,
+		Permissions:       common.GetACLPermissions(c, reqPath),
+		DirectUploadTools: directUploadTools,
 	})
 }
 
