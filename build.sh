@@ -28,7 +28,21 @@ else
   git tag -d beta || true
   # Always true if there's no tag
   version=$(git describe --abbrev=0 --tags 2>/dev/null || echo "v0.0.0")
-  webVersion=$(eval "curl -fsSL --max-time 2 $githubAuthArgs \"https://api.github.com/repos/$frontendRepo/releases/latest\"" | grep "tag_name" | head -n 1 | awk -F ":" '{print $2}' | sed 's/\"//g;s/,//g;s/ //g')
+  webVersion="rolling"
+  set +e
+  release_json=$(eval "curl -fsSL --max-time 2 $githubAuthArgs -H \"Accept: application/vnd.github.v3+json\" \"https://api.github.com/repos/$frontendRepo/releases/latest\"")
+  curl_status=$?
+  set -e
+  if [ $curl_status -eq 0 ] && [ -n "$release_json" ]; then
+    latest_tag=$(echo "$release_json" | jq -r '.tag_name // empty' 2>/dev/null | tr -d '[:space:]')
+    if [ -n "$latest_tag" ]; then
+      webVersion="$latest_tag"
+    else
+      echo "Latest frontend release did not include a tag_name, falling back to rolling"
+    fi
+  else
+    echo "Failed to fetch latest frontend release metadata ($curl_status). Falling back to rolling frontend."
+  fi
 fi
 
 echo "backend version: $version"
@@ -62,16 +76,43 @@ FetchWebRolling() {
 }
 
 FetchWebRelease() {
+  set +e
   release_json=$(eval "curl -fsSL --max-time 2 $githubAuthArgs -H \"Accept: application/vnd.github.v3+json\" \"https://api.github.com/repos/$frontendRepo/releases/latest\"")
-  release_assets=$(echo "$release_json" | jq -r '.assets[].browser_download_url')
-  
-  if [ "$useLite" = true ]; then
-    release_tar_url=$(echo "$release_assets" | grep "openlist-frontend-dist-lite" | grep "\.tar\.gz$")
-  else
-    release_tar_url=$(echo "$release_assets" | grep "openlist-frontend-dist" | grep -v "lite" | grep "\.tar\.gz$")
+  curl_status=$?
+  set -e
+
+  if [ $curl_status -ne 0 ] || [ -z "$release_json" ]; then
+    echo "Unable to fetch latest frontend release for $frontendRepo (status: $curl_status). Falling back to rolling release assets."
+    FetchWebRolling
+    return
   fi
-  
-  curl -fsSL "$release_tar_url" -o dist.tar.gz
+
+  release_assets=$(echo "$release_json" | jq -r '.assets[]? | .browser_download_url // empty')
+
+  if [ -z "$release_assets" ]; then
+    echo "No downloadable assets were found in the latest frontend release. Falling back to rolling release assets."
+    FetchWebRolling
+    return
+  fi
+
+  if [ "$useLite" = true ]; then
+    release_tar_url=$(echo "$release_assets" | grep "openlist-frontend-dist-lite" | grep "\.tar\.gz$" | head -n 1)
+  else
+    release_tar_url=$(echo "$release_assets" | grep "openlist-frontend-dist" | grep -v "lite" | grep "\.tar\.gz$" | head -n 1)
+  fi
+
+  if [ -z "$release_tar_url" ]; then
+    echo "Matching frontend tarball not found in the latest release. Falling back to rolling release assets."
+    FetchWebRolling
+    return
+  fi
+
+  if ! curl -fsSL "$release_tar_url" -o dist.tar.gz; then
+    echo "Failed to download frontend assets from the latest release. Falling back to rolling release assets."
+    FetchWebRolling
+    return
+  fi
+
   rm -rf public/dist && mkdir -p public/dist
   tar -zxvf dist.tar.gz -C public/dist
   rm -rf dist.tar.gz
