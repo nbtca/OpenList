@@ -4,26 +4,38 @@ FROM mcr.microsoft.com/windows/servercore:${WINDOWS_VERSION} AS frontend
 # Use PowerShell as the default shell
 SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
 WORKDIR C:/app/frontend
-# Install Node.js
-RUN Invoke-WebRequest -Uri https://nodejs.org/dist/v25.1.0/node-v25.1.0-x64.msi -OutFile C:/nodejs.msi
-RUN Start-Process msiexec.exe -ArgumentList '/i C:\\nodejs.msi /quiet /norestart' -Wait
-RUN Remove-Item C:/nodejs.msi -Force
-RUN node --version
-# Install Git
-RUN Invoke-WebRequest -Uri https://github.com/git-for-windows/git/releases/download/v2.51.2.windows.1/Git-2.51.2-64-bit.exe -OutFile C:/gitinstaller.exe
-RUN Start-Process -FilePath "C:/gitinstaller.exe" -ArgumentList '/VERYSILENT', '/NORESTART', '/NOCANCEL', '/SP-', '/CLOSEAPPLICATIONS' -Wait
-RUN Remove-Item C:/gitinstaller.exe -Force
-RUN git --version
-# Install pnpm
-RUN npm install -g pnpm
-# Clone the frontend source code
-RUN git clone --depth 1 --branch main https://github.com/nbtca/OpenList-Frontend
+## === Build Frontend ===
+# # Install Node.js
+# RUN Invoke-WebRequest -Uri https://nodejs.org/dist/v25.1.0/node-v25.1.0-x64.msi -OutFile C:/nodejs.msi
+# RUN Start-Process msiexec.exe -ArgumentList '/i C:\\nodejs.msi /quiet /norestart' -Wait
+# RUN Remove-Item C:/nodejs.msi -Force
+# RUN node --version
+# # Install Git
+# RUN Invoke-WebRequest -Uri https://github.com/git-for-windows/git/releases/download/v2.51.2.windows.1/Git-2.51.2-64-bit.exe -OutFile C:/gitinstaller.exe
+# RUN Start-Process -FilePath "C:/gitinstaller.exe" -ArgumentList '/VERYSILENT', '/NORESTART', '/NOCANCEL', '/SP-', '/CLOSEAPPLICATIONS' -Wait
+# RUN Remove-Item C:/gitinstaller.exe -Force
+# RUN git --version
+# # Install pnpm
+# RUN npm install -g pnpm
+# # Clone the frontend source code
+# RUN git clone --depth 1 --branch main https://github.com/nbtca/OpenList-Frontend
 
-# Install frontend dependencies and build
-WORKDIR C:/app/frontend/OpenList-Frontend
-RUN pnpm install
-RUN pnpm run build
+# # Install frontend dependencies and build
+# WORKDIR C:/app/frontend/OpenList-Frontend
+# RUN pnpm install
+# RUN pnpm run build
 
+## === Prebuilt Frontend ===
+# Install 7-Zip
+RUN Invoke-WebRequest -Uri https://www.7-zip.org/a/7z2501-x64.msi -OutFile C:/7zip.msi
+RUN Start-Process msiexec.exe -ArgumentList '/i C:\\7zip.msi /quiet /norestart' -Wait
+RUN Remove-Item C:/7zip.msi -Force
+# Install GitHub CLI
+RUN $release = Invoke-RestMethod "https://api.github.com/repos/nbtca/OpenList-Frontend/releases/tags/rolling"; $asset = $release.assets[0].browser_download_url; Invoke-WebRequest -Uri $asset -OutFile "openlist.tar.gz"
+RUN & 'C:\\Program Files\\7-Zip\\7z.exe' x openlist.tar.gz -oC:/app/frontend -y
+RUN Remove-Item C:/app/frontend/openlist.tar.gz -Force
+RUN & 'C:\\Program Files\\7-Zip\\7z.exe' x C:/app/frontend/openlist.tar -oC:/app/frontend/OpenList-Frontend/dist -y
+RUN Remove-Item C:/app/frontend/openlist.tar -Force
 
 # Build stage
 FROM golang:1.25-windowsservercore-${WINDOWS_VERSION} AS builder
