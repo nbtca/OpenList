@@ -105,20 +105,25 @@ func (d *Onedrive) _refreshToken() error {
 		return nil
 	}
 	// 使用本地客户端的情况下检查是否为空
-	if d.ClientID == "" || d.ClientSecret == "" {
-		return fmt.Errorf("empty ClientID or ClientSecret")
+	if d.ClientID == "" {
+		return fmt.Errorf("empty ClientID")
 	}
 	// 走原有的刷新逻辑
 	url := d.GetMetaUrl(true, "") + "/common/oauth2/v2.0/token"
 	var resp base.TokenResp
 	var e TokenErr
-	_, err := base.RestyClient.R().SetResult(&resp).SetError(&e).SetFormData(map[string]string{
+	formData := map[string]string{
 		"grant_type":    "refresh_token",
 		"client_id":     d.ClientID,
-		"client_secret": d.ClientSecret,
 		"redirect_uri":  d.RedirectUri,
 		"refresh_token": d.RefreshToken,
-	}).Post(url)
+	}
+	if d.ClientSecret != "" {
+		formData["client_secret"] = d.ClientSecret
+	} else {
+		formData["claims"] = "{\"access_token\":{\"xms_cc\":{\"values\":[\"cp1\"]}}}"
+	}
+	_, err := base.RestyClient.R().SetResult(&resp).SetError(&e).SetFormData(formData).Post(url)
 	if err != nil {
 		return err
 	}
