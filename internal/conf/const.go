@@ -56,6 +56,8 @@ const (
 	ShareArchivePreview     = "share_archive_preview"
 	ShareForceProxy         = "share_force_proxy"
 	ShareSummaryContent     = "share_summary_content"
+	HandleHookAfterWriting  = "handle_hook_after_writing"
+	HandleHookRateLimit     = "handle_hook_rate_limit"
 	IgnoreSystemFiles       = "ignore_system_files"
 
 	// index
@@ -114,6 +116,7 @@ const (
 	// ldap
 	LdapLoginEnabled      = "ldap_login_enabled"
 	LdapServer            = "ldap_server"
+	LdapSkipTlsVerify     = "ldap_skip_tls_verify"
 	LdapManagerDN         = "ldap_manager_dn"
 	LdapManagerPassword   = "ldap_manager_password"
 	LdapUserSearchBase    = "ldap_user_search_base"
@@ -172,7 +175,7 @@ const (
 )
 
 // ContextKey is the type of context keys.
-type ContextKey int
+type ContextKey int8
 
 const (
 	_ ContextKey = iota
@@ -188,4 +191,5 @@ const (
 	UserAgentKey
 	PathKey
 	SharingIDKey
+	SkipHookKey
 )

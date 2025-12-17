@@ -3,27 +3,28 @@ package fs
 import (
 	"context"
 
+	"github.com/OpenListTeam/OpenList/v4/internal/conf"
 	"github.com/OpenListTeam/OpenList/v4/internal/driver"
 	"github.com/OpenListTeam/OpenList/v4/internal/model"
 	"github.com/OpenListTeam/OpenList/v4/internal/op"
 	"github.com/OpenListTeam/OpenList/v4/internal/task"
+	"github.com/OpenListTeam/OpenList/v4/pkg/utils"
 	"github.com/pkg/errors"
 )
 
-func makeDir(ctx context.Context, path string, lazyCache ...bool) error {
+func makeDir(ctx context.Context, path string) error {
 	// Check ACL permission for writing (create directory)
 	if _, err := op.CheckACLPermission(ctx, path, model.ACLPermWrite); err != nil {
 		return err
 	}
-
 	storage, actualPath, err := op.GetStorageAndActualPath(path)
 	if err != nil {
 		return errors.WithMessage(err, "failed get storage")
 	}
-	return op.MakeDir(ctx, storage, actualPath, lazyCache...)
+	return op.MakeDir(ctx, storage, actualPath)
 }
 
-func rename(ctx context.Context, srcPath, dstName string, lazyCache ...bool) error {
+func rename(ctx context.Context, srcPath, dstName string, skipHook ...bool) error {
 	// Check ACL permission for manage (rename)
 	if _, err := op.CheckACLPermission(ctx, srcPath, model.ACLPermManage); err != nil {
 		return err
@@ -33,7 +34,10 @@ func rename(ctx context.Context, srcPath, dstName string, lazyCache ...bool) err
 	if err != nil {
 		return errors.WithMessage(err, "failed get storage")
 	}
-	return op.Rename(ctx, storage, srcActualPath, dstName, lazyCache...)
+	if utils.IsBool(skipHook...) {
+		ctx = context.WithValue(ctx, conf.SkipHookKey, struct{}{})
+	}
+	return op.Rename(ctx, storage, srcActualPath, dstName)
 }
 
 func remove(ctx context.Context, path string) error {

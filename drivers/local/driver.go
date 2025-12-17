@@ -331,7 +331,7 @@ func (d *Local) Move(ctx context.Context, srcObj, dstDir model.Obj) error {
 		return fmt.Errorf("the destination folder is a subfolder of the source folder")
 	}
 	err := renameFile(srcPath, dstPath, false)
-	if err != nil && strings.Contains(err.Error(), "invalid cross-device link") {
+	if err != nil && isCrossDeviceError(err){
 		// 跨设备移动，先复制再删除
 		if err := d.Copy(ctx, srcObj, dstDir); err != nil {
 			return err
@@ -381,13 +381,12 @@ func (d *Local) Copy(_ context.Context, srcObj, dstDir model.Obj) error {
 	if utils.IsSubPath(srcPath, dstPath) {
 		return fmt.Errorf("the destination folder is a subfolder of the source folder")
 	}
-	// Copy using otiai10/copy to perform more secure & efficient copy
-	err := cp.Copy(srcPath, dstPath, cp.Options{
-		Sync:          true, // Sync file to disk after copy, may have performance penalty in filesystem such as ZFS
-		PreserveTimes: true,
-		PreserveOwner: true,
-	})
+	info, err := os.Lstat(srcPath)
 	if err != nil {
+		return err
+	}
+	// 复制regular文件会返回errs.NotImplement, 转为复制任务
+	if err = d.tryCopy(srcPath, dstPath, info); err != nil {
 		return err
 	}
 

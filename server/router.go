@@ -187,6 +187,10 @@ func admin(g *gin.RouterGroup) {
 	acl.POST("/create", handles.CreateACLRule)
 	acl.POST("/update", handles.UpdateACLRule)
 	acl.POST("/delete", handles.DeleteACLRule)
+	scan := g.Group("/scan")
+	scan.POST("/start", handles.StartManualScan)
+	scan.POST("/stop", handles.StopManualScan)
+	scan.GET("/progress", handles.GetManualScanProgress)
 }
 
 func fsAndShare(g *gin.RouterGroup) {
