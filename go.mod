@@ -105,7 +105,6 @@ require (
 	github.com/emersion/go-vcard v0.0.0-20241024213814-c9703dde27ff // indirect
 	github.com/geoffgarside/ber v1.2.0 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
-	github.com/henrybear327/go-proton-api v1.0.0 // indirect
 	github.com/jcmturner/aescts/v2 v2.0.0 // indirect
 	github.com/jcmturner/dnsutils/v2 v2.0.0 // indirect
 	github.com/jcmturner/gofork v1.7.6 // indirect
@@ -117,6 +116,8 @@ require (
 	github.com/minio/minlz v1.0.0 // indirect
 	github.com/minio/xxml v0.0.3 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
+	github.com/otiai10/copy v1.14.1 // indirect
+	github.com/otiai10/mint v1.6.3 // indirect
 	github.com/quic-go/qpack v0.5.1 // indirect
 	github.com/relvacode/iso8601 v1.6.0 // indirect
 	github.com/sdassow/atomic v0.0.1 // indirect
