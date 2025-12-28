@@ -266,6 +266,11 @@ func pathMatchesWithSubfolder(path, pattern string, includeSubfolder bool) bool 
 		return true
 	}
 	if includeSubfolder {
+		// Special handling for root pattern
+		if pattern == "/" {
+			// All normalized paths start with "/"
+			return strings.HasPrefix(path, "/")
+		}
 		// Check if path is under this directory
 		return strings.HasPrefix(path, pattern+"/") || path == pattern
 	}
