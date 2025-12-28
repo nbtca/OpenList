@@ -92,7 +92,7 @@ func CheckACLPermission(ctx context.Context, path string, requiredPerm int32) (*
 
 	for _, rule := range allRules {
 		// Check if rule applies to any of the user's roles
-		if !containsRole(userRoles, rule.Role) {
+		if !containsRole(userRoles, rule.Role, rule.IsRegex) {
 			continue
 		}
 
@@ -125,6 +125,7 @@ func CheckACLPermission(ctx context.Context, path string, requiredPerm int32) (*
 		ruleInfo := &errs.ACLRuleInfo{
 			RulePath:    matchedRule.Path,
 			Role:        matchedRule.Role,
+			IsRegex:     matchedRule.IsRegex,
 			Permissions: getPermissionNames(matchedRule.Permissions),
 			Priority:    matchedRule.Priority,
 		}
@@ -180,7 +181,7 @@ func GetMatchedACLRule(ctx context.Context, path string) (*model.ACLMatchedRule,
 	normalizedPath := normalizePath(path)
 
 	for _, rule := range allRules {
-		if !containsRole(userRoles, rule.Role) {
+		if !containsRole(userRoles, rule.Role, rule.IsRegex) {
 			continue
 		}
 
@@ -227,9 +228,18 @@ func getUserRoles(user *model.User) []string {
 	return roles
 }
 
-func containsRole(roles []string, role string) bool {
+func containsRole(roles []string, role string, isRegex bool) bool {
 	if role == "*" {
 		return true
+	}
+	if isRegex {
+		for _, r := range roles {
+			matched, err := utils.RegexMatch(role, r)
+			if err == nil && matched {
+				return true
+			}
+		}
+		return false
 	}
 	return slices.Contains(roles, role)
 }

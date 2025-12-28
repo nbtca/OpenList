@@ -10,6 +10,7 @@ import (
 
 type ACLRuleReq struct {
 	Role        string `json:"role" binding:"required"`
+	IsRegex     bool   `json:"is_regex"`
 	Path        string `json:"path" binding:"required"`
 	Permissions int32  `json:"permissions"`
 	Priority    int    `json:"priority"`
@@ -64,6 +65,7 @@ func CreateACLRule(c *gin.Context) {
 	}
 	rule := &model.ACLRule{
 		Role:        req.Role,
+		IsRegex:     req.IsRegex,
 		Path:        req.Path,
 		Permissions: req.Permissions,
 		Priority:    req.Priority,
@@ -122,12 +124,12 @@ func GetPathACLInfo(c *gin.Context) {
 		common.ErrorResp(c, err, 400)
 		return
 	}
-	
+
 	matched, err := op.GetMatchedACLRule(c.Request.Context(), req.Path)
 	if err != nil {
 		common.ErrorResp(c, err, 500)
 		return
 	}
-	
+
 	common.SuccessResp(c, matched)
 }

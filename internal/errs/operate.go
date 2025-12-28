@@ -22,6 +22,7 @@ type ACLPermissionDeniedError struct {
 type ACLRuleInfo struct {
 	RulePath    string
 	Role        string
+	IsRegex     bool
 	Permissions []string
 	Priority    int
 }
