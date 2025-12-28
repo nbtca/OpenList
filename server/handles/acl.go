@@ -9,11 +9,12 @@ import (
 )
 
 type ACLRuleReq struct {
-	Role        string `json:"role" binding:"required"`
-	IsRegex     bool   `json:"is_regex"`
-	Path        string `json:"path" binding:"required"`
-	Permissions int32  `json:"permissions"`
-	Priority    int    `json:"priority"`
+	Role             string `json:"role" binding:"required"`
+	IsRegex          bool   `json:"is_regex"`
+	Path             string `json:"path" binding:"required"`
+	Permissions      int32  `json:"permissions"`
+	Priority         int    `json:"priority"`
+	ExcludeSubfolder bool   `json:"exclude_subfolder"` // false means include subfolders (default)
 }
 
 // ListACLRules lists all ACL rules
@@ -64,11 +65,12 @@ func CreateACLRule(c *gin.Context) {
 		return
 	}
 	rule := &model.ACLRule{
-		Role:        req.Role,
-		IsRegex:     req.IsRegex,
-		Path:        req.Path,
-		Permissions: req.Permissions,
-		Priority:    req.Priority,
+		Role:             req.Role,
+		IsRegex:          req.IsRegex,
+		Path:             req.Path,
+		Permissions:      req.Permissions,
+		Priority:         req.Priority,
+		ExcludeSubfolder: req.ExcludeSubfolder,
 	}
 	if err := op.CreateACLRule(rule); err != nil {
 		common.ErrorResp(c, err, 500)

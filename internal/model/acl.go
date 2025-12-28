@@ -4,14 +4,15 @@ import "time"
 
 // ACLRule represents an access control rule for a specific role and path
 type ACLRule struct {
-	ID          uint      `json:"id" gorm:"primaryKey"`
-	Role        string    `json:"role" gorm:"index;not null"`    // OIDC role name
-	IsRegex     bool      `json:"is_regex" gorm:"default:false"` // whether Role is a regex pattern
-	Path        string    `json:"path" gorm:"not null"`          // path pattern (e.g., "/", "/folder/*")
-	Permissions int32     `json:"permissions"`                   // bitwise permissions
-	Priority    int       `json:"priority" gorm:"default:0"`     // higher priority rules override lower ones
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID               uint      `json:"id" gorm:"primaryKey"`
+	Role             string    `json:"role" gorm:"index;not null"`             // OIDC role name
+	IsRegex          bool      `json:"is_regex" gorm:"default:false"`          // whether Role is a regex pattern
+	Path             string    `json:"path" gorm:"not null"`                   // path pattern (e.g., "/", "/folder")
+	ExcludeSubfolder bool      `json:"exclude_subfolder" gorm:"default:false"` // whether to exclude all subfolders (default: false)
+	Permissions      int32     `json:"permissions"`                            // bitwise permissions
+	Priority         int       `json:"priority" gorm:"default:0"`              // higher priority rules override lower ones
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }
 
 // ACL Permission bits

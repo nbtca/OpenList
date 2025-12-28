@@ -96,8 +96,8 @@ func CheckACLPermission(ctx context.Context, path string, requiredPerm int32) (*
 			continue
 		}
 
-		// Check if path matches the rule
-		if pathMatches(normalizedPath, rule.Path) {
+		// Check if path matches the rule, considering ExcludeSubfolder
+		if pathMatchesWithSubfolder(normalizedPath, rule.Path, !rule.ExcludeSubfolder) {
 			if matchedRule == nil || rule.Priority > matchedRule.Priority {
 				matchedRule = &rule
 			}
@@ -185,7 +185,7 @@ func GetMatchedACLRule(ctx context.Context, path string) (*model.ACLMatchedRule,
 			continue
 		}
 
-		if pathMatches(normalizedPath, rule.Path) {
+		if pathMatchesWithSubfolder(normalizedPath, rule.Path, !rule.ExcludeSubfolder) {
 			if matchedRule == nil || rule.Priority > matchedRule.Priority {
 				matchedRule = &rule
 			}
@@ -257,28 +257,18 @@ func normalizePath(path string) string {
 	return path
 }
 
-func pathMatches(path, pattern string) bool {
-	// Normalize both paths
+// pathMatchesWithSubfolder checks if path matches pattern, with subfolder option
+func pathMatchesWithSubfolder(path, pattern string, includeSubfolder bool) bool {
 	path = normalizePath(path)
 	pattern = normalizePath(pattern)
 
-	// Exact match
 	if path == pattern {
 		return true
 	}
-
-	// Pattern with wildcard
-	if strings.HasSuffix(pattern, "/*") {
-		prefix := strings.TrimSuffix(pattern, "/*")
+	if includeSubfolder {
 		// Check if path is under this directory
-		return strings.HasPrefix(path, prefix+"/") || path == prefix
+		return strings.HasPrefix(path, pattern+"/") || path == pattern
 	}
-
-	// Pattern is a parent directory
-	if strings.HasPrefix(path, pattern+"/") {
-		return true
-	}
-
 	return false
 }
 
