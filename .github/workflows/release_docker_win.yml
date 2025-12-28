@@ -42,12 +42,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-          
-      - name: Set up Docker
-        uses: docker/setup-docker-action@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
 
       - name: Login to GitHub Container Registry
         if: env.IMAGE_PUSH == 'true'
@@ -104,14 +98,25 @@ jobs:
           Write-Host "Tags: $tagsString"
 
       - name: Build and push Windows container
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile.windows
-          build-args: |
-            WINDOWS_VERSION=${{ steps.tag.outputs.windows_version }}
-            WINDOWS_TYPE=${{ matrix.container_type }}
-          push: ${{ env.IMAGE_PUSH }}
-          tags: ${{ steps.meta.outputs.tags }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+        shell: pwsh
+        run: |
+          $tags = "${{ steps.meta.outputs.tags }}".Split(",")
+          $tagArgs = @()
+          foreach ($tag in $tags) {
+            $tagArgs += "-t"
+            $tagArgs += $tag.Trim()
+          }
+
+          docker build `
+            --build-arg WINDOWS_VERSION=${{ steps.tag.outputs.windows_version }} `
+            --build-arg WINDOWS_TYPE=${{ matrix.container_type }} `
+            -f Dockerfile.windows `
+            $tagArgs `
+            .
+
+          if ("${{ env.IMAGE_PUSH }}" -eq "true") {
+            foreach ($tag in $tags) {
+              Write-Host "Pushing $($tag.Trim())"
+              docker push $tag.Trim()
+            }
+          }
