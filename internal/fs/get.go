@@ -3,7 +3,6 @@ package fs
 import (
 	"context"
 	stdpath "path"
-	"time"
 
 	"github.com/OpenListTeam/OpenList/v4/internal/model"
 	"github.com/OpenListTeam/OpenList/v4/internal/op"
@@ -21,9 +20,10 @@ func get(ctx context.Context, path string, args *GetArgs) (model.Obj, error) {
 
 	// maybe a virtual file
 	if path != "/" {
-		virtualFiles := op.GetStorageVirtualFilesWithDetailsByPath(ctx, stdpath.Dir(path), !args.WithStorageDetails, false)
+		dir, name := stdpath.Split(path)
+		virtualFiles := op.GetStorageVirtualFilesWithDetailsByPath(ctx, dir, !args.WithStorageDetails, false, name)
 		for _, f := range virtualFiles {
-			if f.GetName() == stdpath.Base(path) {
+			if f.GetName() == name {
 				return f, nil
 			}
 		}
@@ -34,9 +34,8 @@ func get(ctx context.Context, path string, args *GetArgs) (model.Obj, error) {
 		if path == "/" {
 			return &model.Object{
 				Name:     "root",
-				Size:     0,
-				Modified: time.Time{},
 				IsFolder: true,
+				Mask:     model.ReadOnly | model.Virtual,
 			}, nil
 		}
 		return nil, errors.WithMessage(err, "failed get storage")
