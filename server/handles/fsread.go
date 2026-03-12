@@ -51,6 +51,8 @@ type FsListResp struct {
 	Total             int64     `json:"total"`
 	Readme            string    `json:"readme"`
 	Header            string    `json:"header"`
+	ReadmeObj         *ObjResp  `json:"readme_obj"`
+	HeaderObj         *ObjResp  `json:"header_obj"`
 	Write             bool      `json:"write"`
 	Provider          string    `json:"provider"`
 	Permissions       int32     `json:"permissions"` // ACL permissions bitmask
@@ -120,11 +122,36 @@ func FsList(c *gin.Context, req *ListReq, user *model.User) {
 		Total:             int64(total),
 		Readme:            getReadme(meta, reqPath),
 		Header:            getHeader(meta, reqPath),
+		ReadmeObj:         resolveMetaObj(c, getReadme(meta, reqPath), req.Password),
+		HeaderObj:         resolveMetaObj(c, getHeader(meta, reqPath), req.Password),
 		Write:             user.CanWrite() || common.CanWrite(meta, reqPath),
 		Provider:          provider,
 		Permissions:       common.GetACLPermissions(c, reqPath),
 		DirectUploadTools: directUploadTools,
 	})
+}
+
+func resolveMetaObj(c *gin.Context, path string, password string) *ObjResp {
+	if !strings.HasPrefix(path, "/") {
+		return nil
+	}
+	obj, err := fs.Get(c.Request.Context(), path, &fs.GetArgs{})
+	if err != nil {
+		return nil
+	}
+	parent := stdpath.Dir(path)
+	meta, _ := op.GetNearestMeta(path)
+	return &ObjResp{
+		Name:        obj.GetName(),
+		Size:        obj.GetSize(),
+		IsDir:       obj.IsDir(),
+		Modified:    obj.ModTime(),
+		Created:     obj.CreateTime(),
+		HashInfoStr: obj.GetHash().String(),
+		HashInfo:    obj.GetHash().Export(),
+		Sign:        common.Sign(obj, parent, isEncrypt(meta, path)),
+		Type:        utils.GetObjType(obj.GetName(), obj.IsDir()),
+	}
 }
 
 func FsDirs(c *gin.Context) {
@@ -257,11 +284,13 @@ type FsGetReq struct {
 
 type FsGetResp struct {
 	ObjResp
-	RawURL   string    `json:"raw_url"`
-	Readme   string    `json:"readme"`
-	Header   string    `json:"header"`
-	Provider string    `json:"provider"`
-	Related  []ObjResp `json:"related"`
+	RawURL    string    `json:"raw_url"`
+	Readme    string    `json:"readme"`
+	Header    string    `json:"header"`
+	ReadmeObj *ObjResp  `json:"readme_obj"`
+	HeaderObj *ObjResp  `json:"header_obj"`
+	Provider  string    `json:"provider"`
+	Related   []ObjResp `json:"related"`
 }
 
 func FsGetSplit(c *gin.Context) {
@@ -375,11 +404,13 @@ func FsGet(c *gin.Context, req *FsGetReq, user *model.User) {
 			Thumb:        thumb,
 			MountDetails: mountDetails,
 		},
-		RawURL:   rawURL,
-		Readme:   getReadme(meta, reqPath),
-		Header:   getHeader(meta, reqPath),
-		Provider: provider,
-		Related:  toObjsResp(related, parentPath, isEncrypt(parentMeta, parentPath)),
+		RawURL:    rawURL,
+		Readme:    getReadme(meta, reqPath),
+		Header:    getHeader(meta, reqPath),
+		ReadmeObj: resolveMetaObj(c, getReadme(meta, reqPath), req.Password),
+		HeaderObj: resolveMetaObj(c, getHeader(meta, reqPath), req.Password),
+		Provider:  provider,
+		Related:   toObjsResp(related, parentPath, isEncrypt(parentMeta, parentPath)),
 	})
 }
 
