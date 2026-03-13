@@ -70,6 +70,22 @@ jobs:
           echo "windows_version=$windowsVersion" >> $env:GITHUB_OUTPUT
           echo "is_latest=$isLatest" >> $env:GITHUB_OUTPUT
 
+      - name: Ensure Docker Engine is started
+        shell: pwsh
+        run: |
+          $service = Get-Service -Name docker -ErrorAction SilentlyContinue
+          if ($null -ne $service -and $service.Status -ne 'Running') {
+            Write-Host "Starting Docker service..."
+            Start-Service docker
+          }
+          $retries = 0
+          while (!(Test-Path \\.\pipe\docker_engine) -and $retries -lt 15) {
+            Write-Host "Waiting for docker pipe..."
+            Start-Sleep -Seconds 2
+            $retries++
+          }
+          docker info
+
       - name: Build Docker tags
         id: meta
         shell: pwsh
