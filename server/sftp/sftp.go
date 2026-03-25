@@ -49,7 +49,7 @@ func (s *DriverAdapter) Stat(name string, _ bool) (*sftpd.Attr, error) {
 }
 
 func (s *DriverAdapter) SetStat(_ string, _ *sftpd.Attr) error {
-	return errs.NotSupport
+	return nil
 }
 
 func (s *DriverAdapter) ReadLink(_ string) (string, error) {
