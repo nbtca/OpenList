@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/OpenListTeam/OpenList/v4/internal/driver"
@@ -22,15 +23,15 @@ import (
 )
 
 type SMB struct {
-	lastConnTime int64
+	lastConnTime atomic.Int64
 	model.Storage
 	Addition
 	fs *smb2.Share
-	
+
 	// thumbnail support
-	thumbConcurrency      int
-	thumbTokenBucket      TokenBucket
-	videoThumbPos         float64
+	thumbConcurrency          int
+	thumbTokenBucket          TokenBucket
+	videoThumbPos             float64
 	videoThumbPosIsPercentage bool
 }
 
@@ -46,7 +47,7 @@ func (d *SMB) Init(ctx context.Context) error {
 	if !strings.Contains(d.Addition.Address, ":") {
 		d.Addition.Address = d.Addition.Address + ":445"
 	}
-	
+
 	// Initialize thumbnail settings
 	if d.ThumbCacheFolder != "" && !utils.Exists(d.ThumbCacheFolder) {
 		err := os.MkdirAll(d.ThumbCacheFolder, 0755)
@@ -66,7 +67,7 @@ func (d *SMB) Init(ctx context.Context) error {
 	} else {
 		d.thumbTokenBucket = NewStaticTokenBucketWithMigration(d.thumbTokenBucket, d.thumbConcurrency)
 	}
-	
+
 	// Check the VideoThumbPos value
 	if d.VideoThumbPos == "" {
 		d.VideoThumbPos = "20%"
@@ -93,7 +94,7 @@ func (d *SMB) Init(ctx context.Context) error {
 		d.videoThumbPosIsPercentage = false
 		d.videoThumbPos = val
 	}
-	
+
 	return d._initFS(ctx)
 }
 
@@ -135,10 +136,10 @@ func (d *SMB) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (*m
 	if err := d.checkConn(ctx); err != nil {
 		return nil, err
 	}
-	
+
 	link := &model.Link{}
 	var MFile model.File
-	
+
 	// Handle thumbnail requests
 	if args.Type == "thumb" && d.Thumbnail && utils.Ext(file.GetName()) != "svg" {
 		var buf *bytes.Buffer
@@ -175,7 +176,7 @@ func (d *SMB) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (*m
 		link.RequireReference = link.SyncClosers.Length() > 0
 		return link, nil
 	}
-	
+
 	fullPath := file.GetPath()
 	remoteFile, err := d.fs.Open(fullPath)
 	if err != nil {
@@ -265,7 +266,7 @@ func (d *SMB) Remove(ctx context.Context, obj model.Obj) error {
 	}
 	var err error
 	fullPath := obj.GetPath()
-	
+
 	// Handle recycle bin
 	if !utils.SliceContains([]string{"", "delete permanently"}, d.RecycleBinPath) {
 		objName := obj.GetName()
@@ -275,7 +276,7 @@ func (d *SMB) Remove(ctx context.Context, obj model.Obj) error {
 			return err
 		}
 		recycleBinPath := filepath.Join(d.RecycleBinPath, relPath)
-		
+
 		// Create recycle bin directory if it doesn't exist
 		if !utils.Exists(recycleBinPath) {
 			err = os.MkdirAll(recycleBinPath, 0755)
@@ -283,12 +284,12 @@ func (d *SMB) Remove(ctx context.Context, obj model.Obj) error {
 				return err
 			}
 		}
-		
+
 		dstPath := filepath.Join(recycleBinPath, objName)
 		if utils.Exists(dstPath) {
 			dstPath = filepath.Join(recycleBinPath, objName+"_"+time.Now().Format("20060102150405"))
 		}
-		
+
 		// Move to recycle bin
 		err = d.fs.Rename(fullPath, dstPath)
 	} else {
@@ -299,7 +300,7 @@ func (d *SMB) Remove(ctx context.Context, obj model.Obj) error {
 			err = d.fs.Remove(fullPath)
 		}
 	}
-	
+
 	if err != nil {
 		d.cleanLastConnTime()
 		return err

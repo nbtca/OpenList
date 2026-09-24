@@ -63,6 +63,7 @@ type User struct {
 	//   12: can read archives
 	//   13: can decompress archives
 	//   14: can share
+	//   15: can customize share id
 	Permission int32  `json:"permission"`
 	OtpSecret  string `json:"-"`
 	SsoID      string `json:"sso_id"` // unique by sso platform
@@ -125,12 +126,12 @@ func (u *User) CanAddOfflineDownloadTasks() bool {
 	return CanAddOfflineDownloadTasks(u.Permission)
 }
 
-func CanWrite(permission int32) bool {
+func CanWriteContent(permission int32) bool {
 	return (permission>>3)&1 == 1
 }
 
-func (u *User) CanWrite() bool {
-	return CanWrite(u.Permission)
+func (u *User) CanWriteContent() bool {
+	return CanWriteContent(u.Permission)
 }
 
 func CanRename(permission int32) bool {
@@ -219,6 +220,14 @@ func CanShare(permission int32) bool {
 
 func (u *User) CanShare() bool {
 	return CanShare(u.Permission)
+}
+
+func CanCustomizeShareID(permission int32) bool {
+	return (permission>>15)&1 == 1
+}
+
+func (u *User) CanCustomizeShareID() bool {
+	return CanCustomizeShareID(u.Permission)
 }
 
 func (u *User) JoinPath(reqPath string) (string, error) {

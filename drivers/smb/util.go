@@ -26,15 +26,15 @@ import (
 )
 
 func (d *SMB) updateLastConnTime() {
-	atomic.StoreInt64(&d.lastConnTime, time.Now().Unix())
+	d.lastConnTime.Store(time.Now().Unix())
 }
 
 func (d *SMB) cleanLastConnTime() {
-	atomic.StoreInt64(&d.lastConnTime, 0)
+	d.lastConnTime.Store(0)
 }
 
 func (d *SMB) getLastConnTime() time.Time {
-	return time.Unix(atomic.LoadInt64(&d.lastConnTime), 0)
+	return time.Unix(d.lastConnTime.Load(), 0)
 }
 
 func (d *SMB) initFS(ctx context.Context) error {
@@ -214,33 +214,33 @@ func (d *SMB) getThumb(file model.Obj) (*bytes.Buffer, *string, error) {
 			return nil, &thumbPath, nil
 		}
 	}
-	
+
 	var srcBuf *bytes.Buffer
 	fileType := utils.GetFileType(file.GetName())
-	
+
 	if fileType == conf.VIDEO {
 		// For video files, we need to download to a temp file first
 		tempFile := filepath.Join(os.TempDir(), "openlist_temp_"+utils.GetMD5EncodeStr(fullPath)+filepath.Ext(file.GetName()))
 		defer os.Remove(tempFile)
-		
+
 		// Download the video file from SMB to temp
 		remoteFile, err := d.fs.Open(fullPath)
 		if err != nil {
 			return nil, nil, err
 		}
 		defer remoteFile.Close()
-		
+
 		localFile, err := os.Create(tempFile)
 		if err != nil {
 			return nil, nil, err
 		}
-		
+
 		_, err = io.Copy(localFile, remoteFile)
 		localFile.Close()
 		if err != nil {
 			return nil, nil, err
 		}
-		
+
 		videoBuf, err := d.GetSnapshot(fullPath, tempFile)
 		if err != nil {
 			return nil, nil, err
@@ -253,7 +253,7 @@ func (d *SMB) getThumb(file model.Obj) (*bytes.Buffer, *string, error) {
 			return nil, nil, err
 		}
 		defer remoteFile.Close()
-		
+
 		imgData, err := io.ReadAll(remoteFile)
 		if err != nil {
 			return nil, nil, err
@@ -280,4 +280,3 @@ func (d *SMB) getThumb(file model.Obj) (*bytes.Buffer, *string, error) {
 	}
 	return &buf, nil, nil
 }
-

@@ -95,7 +95,7 @@ func FinishAuthnLogin(c *gin.Context) {
 	} else { // client-side discoverable login
 		_, err = authnInstance.FinishDiscoverableLogin(func(_, userHandle []byte) (webauthn.User, error) {
 			// first param `rawID` in this callback function is equal to ID in webauthn.Credential,
-			// but it's unnnecessary to check it.
+			// but it's unnecessary to check it.
 			// userHandle param is equal to (User).WebAuthnID().
 			userID := uint(binary.LittleEndian.Uint64(userHandle))
 			user, err = db.GetUserById(userID)
@@ -130,17 +130,23 @@ func BeginAuthnRegistration(c *gin.Context) {
 	authnInstance, err := authn.NewAuthnInstance(c)
 	if err != nil {
 		common.ErrorResp(c, err, 400)
+		return
 	}
 
-	options, sessionData, err := authnInstance.BeginRegistration(user)
+	options, sessionData, err := authnInstance.BeginRegistration(
+		user,
+		webauthn.WithResidentKeyRequirement(protocol.ResidentKeyRequirementRequired),
+	)
 
 	if err != nil {
 		common.ErrorResp(c, err, 400)
+		return
 	}
 
 	val, err := json.Marshal(sessionData)
 	if err != nil {
 		common.ErrorResp(c, err, 400)
+		return
 	}
 
 	common.SuccessResp(c, gin.H{

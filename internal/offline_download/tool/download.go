@@ -54,6 +54,7 @@ func (t *DownloadTask) Run() error {
 		t.Signal = nil
 	}()
 	gid, err := t.tool.AddURL(&AddUrlArgs{
+		Ctx:     t.Ctx(),
 		Url:     t.Url,
 		UID:     t.ID,
 		TempDir: t.TempDir,
@@ -95,6 +96,9 @@ outer:
 		return nil
 	}
 	if t.tool.Name() == "ThunderX" {
+		return nil
+	}
+	if t.tool.Name() == "GuangYaPan" {
 		return nil
 	}
 	if t.tool.Name() == "115 Cloud" {
@@ -147,10 +151,10 @@ func (t *DownloadTask) Update() (bool, error) {
 	if err != nil {
 		t.callStatusRetried++
 		log.Errorf("failed to get status of %s, retried %d times", t.ID, t.callStatusRetried)
+		if t.callStatusRetried > 5 {
+			return true, errors.Errorf("failed to get status of %s, retried %d times", t.ID, t.callStatusRetried)
+		}
 		return false, nil
-	}
-	if t.callStatusRetried > 5 {
-		return true, errors.Errorf("failed to get status of %s, retried %d times", t.ID, t.callStatusRetried)
 	}
 	t.callStatusRetried = 0
 	t.SetProgress(info.Progress)
@@ -175,7 +179,7 @@ func (t *DownloadTask) Update() (bool, error) {
 
 func (t *DownloadTask) Transfer() error {
 	toolName := t.tool.Name()
-	if toolName == "115 Cloud" || toolName == "115 Open" || toolName == "123 Open" || toolName == "123Pan" || toolName == "PikPak" || toolName == "Thunder" || toolName == "ThunderX" || toolName == "ThunderBrowser" {
+	if toolName == "115 Cloud" || toolName == "115 Open" || toolName == "123 Open" || toolName == "123Pan" || toolName == "PikPak" || toolName == "Thunder" || toolName == "ThunderX" || toolName == "ThunderBrowser" || toolName == "GuangYaPan" {
 		// 如果不是直接下载到目标路径，则进行转存
 		if t.TempDir != t.DstDirPath {
 			return transferObj(t.Ctx(), t.TempDir, t.DstDirPath, t.DeletePolicy)

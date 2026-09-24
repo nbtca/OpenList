@@ -19,6 +19,7 @@ import (
 	"github.com/OpenListTeam/OpenList/v4/internal/conf"
 	"github.com/OpenListTeam/OpenList/v4/internal/driver"
 	"github.com/OpenListTeam/OpenList/v4/internal/model"
+	netutil "github.com/OpenListTeam/OpenList/v4/internal/net"
 	"github.com/OpenListTeam/OpenList/v4/pkg/http_range"
 	"github.com/OpenListTeam/OpenList/v4/pkg/utils"
 	cipher "github.com/SheltonZhu/115driver/pkg/crypto/ec115"
@@ -222,7 +223,7 @@ func (c *Pan115) UploadByOSS(ctx context.Context, params *driver115.UploadOSSPar
 	if err != nil {
 		return nil, err
 	}
-	ossClient, err := oss.New(driver115.OSSEndpoint, ossToken.AccessKeyID, ossToken.AccessKeySecret)
+	ossClient, err := netutil.NewOSSClient(driver115.OSSEndpoint, ossToken.AccessKeyID, ossToken.AccessKeySecret)
 	if err != nil {
 		return nil, err
 	}
@@ -283,7 +284,7 @@ func (d *Pan115) UploadByMultipart(ctx context.Context, params *driver115.Upload
 		return nil, err
 	}
 
-	if ossClient, err = oss.New(driver115.OSSEndpoint, ossToken.AccessKeyID, ossToken.AccessKeySecret, oss.EnableMD5(true), oss.EnableCRC(true)); err != nil {
+	if ossClient, err = netutil.NewOSSClient(driver115.OSSEndpoint, ossToken.AccessKeyID, ossToken.AccessKeySecret, oss.EnableMD5(true), oss.EnableCRC(true)); err != nil {
 		return nil, err
 	}
 
@@ -336,9 +337,11 @@ func (d *Pan115) UploadByMultipart(ctx context.Context, params *driver115.Upload
 			for chunk := range chunksCh {
 				var part oss.UploadPart // 出现错误就继续尝试，共尝试3次
 				for retry := 0; retry < 3; retry++ {
-					select {
-					case <-ctx.Done():
+					if utils.IsCanceled(ctx) {
+						err = ctx.Err()
 						break
+					}
+					select {
 					case <-ticker.C:
 						if ossToken, err = d.client.GetOSSToken(); err != nil { // 到时重新获取ossToken
 							errCh <- errors.Wrap(err, "刷新token时出现错误")

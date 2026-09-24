@@ -19,7 +19,7 @@ import (
 
 func PathParse(c *gin.Context) {
 	rawPath := parsePath(c.Param("path"))
-	common.GinWithValue(c, conf.PathKey, rawPath)
+	common.GinAppendValues(c, conf.PathKey, rawPath)
 	c.Next()
 }
 
@@ -27,13 +27,11 @@ func Down(verifyFunc func(string, string) error) func(c *gin.Context) {
 	return func(c *gin.Context) {
 		rawPath := c.Request.Context().Value(conf.PathKey).(string)
 		meta, err := op.GetNearestMeta(rawPath)
-		if err != nil {
-			if !errors.Is(errors.Cause(err), errs.MetaNotFound) {
-				common.ErrorPage(c, err, 500, true)
-				return
-			}
+		if err != nil && !errors.Is(errors.Cause(err), errs.MetaNotFound) {
+			common.ErrorPage(c, err, 500, true)
+			return
 		}
-		common.GinWithValue(c, conf.MetaKey, meta)
+		common.GinAppendValues(c, conf.MetaKey, meta)
 
 		// verify sign and try to extract user
 		if needSign(meta, rawPath) {
@@ -62,7 +60,7 @@ func Down(verifyFunc func(string, string) error) func(c *gin.Context) {
 						c.Abort()
 						return
 					}
-					common.GinWithValue(c, conf.UserKey, guest)
+					common.GinAppendValues(c, conf.UserKey, guest)
 				} else if user.PwdTS != userInfo.PwdTS {
 					log.Warnf("Password timestamp mismatch for user %s, sign may be outdated", user.Username)
 					// 密码已更改，使用 guest
@@ -72,10 +70,10 @@ func Down(verifyFunc func(string, string) error) func(c *gin.Context) {
 						c.Abort()
 						return
 					}
-					common.GinWithValue(c, conf.UserKey, guest)
+					common.GinAppendValues(c, conf.UserKey, guest)
 				} else {
 					// 用户有效，设置到 Context
-					common.GinWithValue(c, conf.UserKey, user)
+					common.GinAppendValues(c, conf.UserKey, user)
 					log.Debugf("User extracted from sign: %+v", user.Username)
 				}
 			} else {
@@ -86,7 +84,7 @@ func Down(verifyFunc func(string, string) error) func(c *gin.Context) {
 					c.Abort()
 					return
 				}
-				common.GinWithValue(c, conf.UserKey, guest)
+				common.GinAppendValues(c, conf.UserKey, guest)
 			}
 		} else {
 			// 不需要签名，使用 guest
@@ -96,7 +94,7 @@ func Down(verifyFunc func(string, string) error) func(c *gin.Context) {
 				c.Abort()
 				return
 			}
-			common.GinWithValue(c, conf.UserKey, guest)
+			common.GinAppendValues(c, conf.UserKey, guest)
 		}
 
 		c.Next()
@@ -113,7 +111,7 @@ func DownWithUserExtraction(c *gin.Context) {
 			return
 		}
 	}
-	common.GinWithValue(c, conf.MetaKey, meta)
+	common.GinAppendValues(c, conf.MetaKey, meta)
 
 	// verify sign and extract user
 	if needSign(meta, rawPath) {
@@ -137,7 +135,7 @@ func DownWithUserExtraction(c *gin.Context) {
 					c.Abort()
 					return
 				}
-				common.GinWithValue(c, conf.UserKey, guest)
+				common.GinAppendValues(c, conf.UserKey, guest)
 			} else {
 				// 验证密码时间戳，确保密码未被修改
 				if user.PwdTS != userInfo.PwdTS {
@@ -149,10 +147,10 @@ func DownWithUserExtraction(c *gin.Context) {
 						c.Abort()
 						return
 					}
-					common.GinWithValue(c, conf.UserKey, guest)
+					common.GinAppendValues(c, conf.UserKey, guest)
 				} else {
 					// 验证通过，设置用户
-					common.GinWithValue(c, conf.UserKey, user)
+					common.GinAppendValues(c, conf.UserKey, user)
 					log.Debugf("User extracted from sign: %+v", user.Username)
 				}
 			}
@@ -164,7 +162,7 @@ func DownWithUserExtraction(c *gin.Context) {
 				c.Abort()
 				return
 			}
-			common.GinWithValue(c, conf.UserKey, guest)
+			common.GinAppendValues(c, conf.UserKey, guest)
 		}
 	} else {
 		// 不需要签名，使用 guest 用户
@@ -174,7 +172,7 @@ func DownWithUserExtraction(c *gin.Context) {
 			c.Abort()
 			return
 		}
-		common.GinWithValue(c, conf.UserKey, guest)
+		common.GinAppendValues(c, conf.UserKey, guest)
 	}
 
 	c.Next()
@@ -196,7 +194,7 @@ func needSign(meta *model.Meta, path string) bool {
 	if meta == nil || meta.Password == "" {
 		return false
 	}
-	if !meta.PSub && path != meta.Path {
+	if !meta.PSub && !common.MetaCoversPath(meta.Path, path, false) {
 		return false
 	}
 	return true
